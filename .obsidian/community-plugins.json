@@ -1,9 +1,8 @@
 [
-  "github-sync",
   "obsidian-kanban",
   "obsidian-spaced-repetition",
-  "obsidian-git",
   "omnisearch",
   "obsidian-mind-map",
-  "nldates-obsidian"
+  "nldates-obsidian",
+  "obsidian-git"
 ]

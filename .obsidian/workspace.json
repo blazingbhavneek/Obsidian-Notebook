@@ -15,8 +15,8 @@
               "state": {
                 "file": "Web Development/Overview.canvas",
                 "viewState": {
-                  "x": 1051.9115497199675,
-                  "y": -496.4205060509468,
+                  "x": 1018.0504982552636,
+                  "y": -550.3473657910307,
                   "zoom": -0.2998475641639816
                 }
               }
@@ -166,8 +166,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 200,
-    "collapsed": true
+    "width": 200
   },
   "left-ribbon": {
     "hiddenItems": {
@@ -184,7 +183,7 @@
       "omnisearch:Omnisearch": false
     }
   },
-  "active": "a0d882203c103598",
+  "active": "efe6a51c63b6e546",
   "lastOpenFiles": [
     "Web Development/Overview.canvas",
     "Web Development/Backend/Basics of Internet.md",
