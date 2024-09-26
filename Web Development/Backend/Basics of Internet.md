@@ -81,4 +81,3 @@
         - Distributed Server + Peering = High volume internet products like google amazon etc    
     - Internet exchange point (IXPs)
         - Structure that allows internet backbone (Global ISPs) to work together
-- BLA BLA
