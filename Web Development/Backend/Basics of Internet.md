@@ -11,9 +11,7 @@
     
     - Wireless switch basically
 - Packets/Frames
-    
     - Information sent by one computer to other
-        
     - Packet -> Switch -> Destination computer
 - LAN Ports
     
@@ -40,7 +38,6 @@
         
     - The internet has distributed architecture to avoid single point failure
 - Forwarding
-    
     - Information passed on by router after learning its destination
 - Routing tables
     
@@ -50,9 +47,7 @@
         
         - If a router is busy/overloaded then it can be sent to some alternate path
 - Server
-    
     - Special computers that are more computationally powerful as compared to client device as they have to send a lot of data
-        
     - Distributed server avoids single point failure and does load balancing
 - WAN (wide area network)
     
@@ -71,7 +66,6 @@
     
     - End-to-End: Information encrypted at client side and decrypted at server side
 - ISP
-    
     - Organised into hierarchal structure
         
         - Global
@@ -82,11 +76,9 @@
             
             - In small offices called "POP: Point of presence"
     - Peering
-        
         - Establishing direct connection to Local ISP and lower levels skipping long paths
             
-        - Distributed Server + Peering = High volume internet products like google amazon etc
-            
+        - Distributed Server + Peering = High volume internet products like google amazon etc    
     - Internet exchange point (IXPs)
-        
         - Structure that allows internet backbone (Global ISPs) to work together
+- BLA BLA
