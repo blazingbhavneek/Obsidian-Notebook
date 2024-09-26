@@ -15,9 +15,9 @@
               "state": {
                 "file": "Web Development/Overview.canvas",
                 "viewState": {
-                  "x": 929.0084740332666,
-                  "y": -280.71306709060997,
-                  "zoom": -0.7998475641639816
+                  "x": 1051.9115497199675,
+                  "y": -496.4205060509468,
+                  "zoom": -0.2998475641639816
                 }
               }
             }
@@ -34,7 +34,8 @@
               }
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -100,7 +101,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Web Development/Overview.canvas",
+                "file": "Web Development/Backend/Basics of Internet.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -117,7 +118,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "Web Development/Overview.canvas",
+                "file": "Web Development/Backend/Basics of Internet.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -140,7 +141,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Web Development/Overview.canvas"
+                "file": "Web Development/Backend/Basics of Internet.md"
               }
             }
           },
@@ -165,7 +166,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 200,
+    "collapsed": true
   },
   "left-ribbon": {
     "hiddenItems": {
@@ -182,11 +184,11 @@
       "omnisearch:Omnisearch": false
     }
   },
-  "active": "d087b9b2d62850da",
+  "active": "a0d882203c103598",
   "lastOpenFiles": [
-    "README.md",
-    "Web Development/Backend/Basics of Internet.md",
     "Web Development/Overview.canvas",
+    "Web Development/Backend/Basics of Internet.md",
+    "README.md",
     "Untitled.canvas",
     "Web Development/Untitled.md",
     "Web Development/Backend",

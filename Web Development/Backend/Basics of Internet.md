@@ -1,4 +1,4 @@
-- Switch
+- Switch 
     
     - Device we use to enable computers in same environment to communicate with each other
         
@@ -7,7 +7,6 @@
     - CAT-5 or 6 cable in small env
         
     - Switch + Computers = Network -> LAN (Local area network)
-        
 - Access point device
     
     - Wireless switch basically
@@ -16,7 +15,6 @@
     - Information sent by one computer to other
         
     - Packet -> Switch -> Destination computer
-        
 - LAN Ports
     
     - Ports in switch and computers to connect to local area network
@@ -31,19 +29,16 @@
     - Router + Switch, good for small environments
         
     - If env is big then switch needs to be separate
-        
 - Internet
-	    
-	- Networks of networks
-	    
-	- Network that connects all the LANs to each other that are connected to it
     
+	- Networks of networks
+    
+	- Network that connects all the LANs to each other that are connected to it
 - Single point failure
     
     - If one device fails then the system fails
         
     - The internet has distributed architecture to avoid single point failure
-        
 - Forwarding
     
     - Information passed on by router after learning its destination
@@ -59,7 +54,6 @@
     - Special computers that are more computationally powerful as compared to client device as they have to send a lot of data
         
     - Distributed server avoids single point failure and does load balancing
-        
 - WAN (wide area network)
     
     - Internet is public, whereas WAN is private network although it spans over long distance
