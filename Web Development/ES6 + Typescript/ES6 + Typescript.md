@@ -1,0 +1,11 @@
+- Transpiler: Convert ES6 -> ES5 code for older browsers to run
+- Variable hoisting: Variable declarations in a function move to the beginning of function logic
+- "var" declaration has functional scope, it can be accessed throught the function
+- "let" declaration has block scope (limited to immediate parent block, function, if/else, loop block) and are NOT hoisted, "let" do not allow re-declaration in same block
+- Closures var and let
+	- Closures are functions that depend on another variable from lexical environment
+	- https://www.geeksforgeeks.org/closure-in-javascript/
+	- Famous question involving Var, let, hoisting, clousure and timeout 
+	- https://www.youtube.com/watch?v=vKJpN5FAeF4
+- 
+	  

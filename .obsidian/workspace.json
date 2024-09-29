@@ -11,14 +11,11 @@
             "id": "d087b9b2d62850da",
             "type": "leaf",
             "state": {
-              "type": "canvas",
+              "type": "markdown",
               "state": {
-                "file": "Web Development/Overview.canvas",
-                "viewState": {
-                  "x": 1018.0504982552636,
-                  "y": -550.3473657910307,
-                  "zoom": -0.2998475641639816
-                }
+                "file": "Web Development/ES6 + Typescript/ES6 + Typescript.md",
+                "mode": "source",
+                "source": false
               }
             }
           },
@@ -34,8 +31,7 @@
               }
             }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "vertical"
@@ -101,7 +97,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Web Development/Backend/Basics of Internet.md",
+                "file": "Web Development/ES6 + Typescript/ES6 + Typescript.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -118,7 +114,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "Web Development/Backend/Basics of Internet.md",
+                "file": "Web Development/ES6 + Typescript/ES6 + Typescript.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -141,7 +137,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Web Development/Backend/Basics of Internet.md"
+                "file": "Web Development/ES6 + Typescript/ES6 + Typescript.md"
               }
             }
           },
@@ -176,20 +172,24 @@
       "daily-notes:Open today's daily note": false,
       "templates:Insert template": false,
       "command-palette:Open command palette": false,
-      "github-sync:Sync with Remote": false,
       "obsidian-kanban:Create new board": false,
       "obsidian-spaced-repetition:Review flashcards": false,
       "obsidian-git:Open Git source control": false,
       "omnisearch:Omnisearch": false
     }
   },
-  "active": "efe6a51c63b6e546",
+  "active": "d087b9b2d62850da",
   "lastOpenFiles": [
+    "Web Development/Frontend/React/React.md",
+    "Web Development/ES6 + Typescript/ES6 + Typescript.md",
+    "Web Development/ES6 + Typescript",
+    "Untitled",
+    "Web Development/Frontend/React",
     "Web Development/Overview.canvas",
+    "Web Development/Frontend",
     "Web Development/Backend/Basics of Internet.md",
     "README.md",
     "Untitled.canvas",
-    "Web Development/Untitled.md",
     "Web Development/Backend",
     "Untitled.md",
     "Web Development",
