@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Web Development/Frontend/React/3. Ternary Operators, Lists and CSS, Exporting components.md",
+                "file": "Web Development/Frontend/React/6. Component Lifecycle, useEffect Hook.md",
                 "mode": "source",
                 "source": false
               }
@@ -97,7 +97,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Web Development/Frontend/React/3. Ternary Operators, Lists and CSS, Exporting components.md",
+                "file": "Web Development/Frontend/React/6. Component Lifecycle, useEffect Hook.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -114,7 +114,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "Web Development/Frontend/React/3. Ternary Operators, Lists and CSS, Exporting components.md",
+                "file": "Web Development/Frontend/React/6. Component Lifecycle, useEffect Hook.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -137,7 +137,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Web Development/Frontend/React/3. Ternary Operators, Lists and CSS, Exporting components.md"
+                "file": "Web Development/Frontend/React/6. Component Lifecycle, useEffect Hook.md"
               }
             }
           },
@@ -180,10 +180,12 @@
   },
   "active": "d087b9b2d62850da",
   "lastOpenFiles": [
+    "Web Development/Frontend/React/5. To-Do app.md",
+    "Web Development/Frontend/React/6. Component Lifecycle, useEffect Hook.md",
     "Web Development/Frontend/React/4. States, useState Hook.md",
+    "Web Development/Frontend/React/3. Ternary Operators, Lists and CSS, Exporting components.md",
     "Web Development/Backend/Basics of Internet.md",
     "Web Development/Frontend/React/1. Setup (Basic).md",
-    "Web Development/Frontend/React/3. Ternary Operators, Lists and CSS, Exporting components.md",
     "Web Development/Frontend/React/2. JSX, Components and Props.md",
     "Web Development/Frontend/React.md",
     "Web Development/Overview.canvas",
