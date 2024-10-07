@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Web Development/Frontend/React/11. React Forms.md",
+                "file": "Web Development/FullStack/NextJS/4. Server vs Client side Rendering.md",
                 "mode": "source",
                 "source": false
               }
@@ -97,7 +97,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Web Development/Frontend/React/11. React Forms.md",
+                "file": "Web Development/FullStack/NextJS/4. Server vs Client side Rendering.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -114,7 +114,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "Web Development/Frontend/React/11. React Forms.md",
+                "file": "Web Development/FullStack/NextJS/4. Server vs Client side Rendering.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -137,7 +137,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Web Development/Frontend/React/11. React Forms.md"
+                "file": "Web Development/FullStack/NextJS/4. Server vs Client side Rendering.md"
               }
             }
           },
@@ -180,8 +180,20 @@
   },
   "active": "d087b9b2d62850da",
   "lastOpenFiles": [
-    "Web Development/Frontend/React/10. React query.md",
+    "Web Development/FullStack/NextJS/3. Routing, Links, useRouter Hook, Dynamic router and Catching routes, Redirects.md",
+    "Web Development/FullStack/NextJS/4. Server vs Client side Rendering.md",
+    "Web Development/FullStack/NextJS/Untitled",
+    "Web Development/FullStack/NextJS/2. Setup.md",
+    "Pasted image 20241007212316.png",
+    "Web Development/FullStack/NextJS/1. What is NextJS.md",
+    "Web Development/Overview.canvas",
+    "Web Development/FullStack/NextJS",
+    "Web Development/Basics/JavaScript (Advanced Crash Course).md",
+    "Web Development/FullStack",
+    "Web Development/Frontend/React/13. Type Safety, TypeScript.md",
+    "Web Development/Frontend/React/12. Custom Hook.md",
     "Web Development/Frontend/React/11. React Forms.md",
+    "Web Development/Frontend/React/10. React query.md",
     "Web Development/Frontend/React/9. State Management, useContext Hook.md",
     "Web Development/Frontend/React/8. React Router DOM.md",
     "Web Development/Frontend/React/7. Fetching Data from API.md",
@@ -193,9 +205,7 @@
     "Web Development/Frontend/React/3. Ternary Operators, Lists and CSS, Exporting components.md",
     "Web Development/Backend/Basics of Internet.md",
     "Web Development/Frontend/React.md",
-    "Web Development/Overview.canvas",
-    "Web Development/ES6 + Typescript/ES6 + Typescript.md",
-    "Web Development/ES6 + Typescript",
+    "Web Development/Basics",
     "Untitled",
     "Web Development/Frontend/React",
     "Web Development/Frontend",
