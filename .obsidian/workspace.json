@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Web Development/FullStack/NextJS/4. Server vs Client side Rendering.md",
+                "file": "Web Development/FullStack/NextJS/5. Layout.js, Conditional component.md",
                 "mode": "source",
                 "source": false
               }
@@ -97,7 +97,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Web Development/FullStack/NextJS/4. Server vs Client side Rendering.md",
+                "file": "Web Development/FullStack/NextJS/5. Layout.js, Conditional component.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -114,7 +114,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "Web Development/FullStack/NextJS/4. Server vs Client side Rendering.md",
+                "file": "Web Development/FullStack/NextJS/5. Layout.js, Conditional component.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -137,7 +137,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Web Development/FullStack/NextJS/4. Server vs Client side Rendering.md"
+                "file": "Web Development/FullStack/NextJS/5. Layout.js, Conditional component.md"
               }
             }
           },
@@ -180,8 +180,9 @@
   },
   "active": "d087b9b2d62850da",
   "lastOpenFiles": [
-    "Web Development/FullStack/NextJS/3. Routing, Links, useRouter Hook, Dynamic router and Catching routes, Redirects.md",
     "Web Development/FullStack/NextJS/4. Server vs Client side Rendering.md",
+    "Web Development/FullStack/NextJS/5. Layout.js, Conditional component.md",
+    "Web Development/FullStack/NextJS/3. Routing, Links, useRouter Hook, Dynamic router and Catching routes, Redirects.md",
     "Web Development/FullStack/NextJS/Untitled",
     "Web Development/FullStack/NextJS/2. Setup.md",
     "Pasted image 20241007212316.png",
