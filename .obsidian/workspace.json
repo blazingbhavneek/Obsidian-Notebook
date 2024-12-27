@@ -13,15 +13,30 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Web Development/Basics/TypeScript/Types.md",
+                "file": "Web Development/Basics/TypeScript/3. Interface and Types.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Types"
+              "title": "3. Interface and Types"
+            }
+          },
+          {
+            "id": "c689a44535f93243",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Web Development/Basics/Javascript/2. Web Storage API.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "2. Web Storage API"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -181,6 +196,26 @@
             "state": {
               "type": "review-queue-list-view",
               "state": {},
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
+            }
+          },
+          {
+            "id": "3de711bbd2e2e115",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "SpacedRepIcon",
+              "title": "Notes Review Queue"
+            }
+          },
+          {
+            "id": "b614feeff2502304",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
               "icon": "SpacedRepIcon",
               "title": "Notes Review Queue"
             }
@@ -206,46 +241,46 @@
       "omnisearch:Omnisearch": false
     }
   },
-  "active": "6446bdab49bb633f",
+  "active": "c689a44535f93243",
   "lastOpenFiles": [
-    "Web Development/Basics/TypeScript/Installing.md",
-    "Web Development/Basics/TypeScript/Types.md",
+    "Web Development/Frontend/React/4. States, useState Hook.md",
+    "Web Development/Frontend/React/3. Ternary Operators, Lists and CSS, Exporting components.md",
+    "Web Development/Frontend/React/2. JSX, Components and Props.md",
+    "Web Development/Frontend/React/13. Type Safety, TypeScript.md",
+    "Web Development/Frontend/React/11. React Forms.md",
+    "Web Development/Frontend/React/8. React Router DOM.md",
+    "Web Development/Frontend/React/5. To-Do app.md",
+    "Web Development/Frontend/React/1. Setup (Basic).md",
+    "Web Development/Frontend/React/12. Custom Hook.md",
+    "Web Development/Frontend/React/10. React query.md",
+    "Web Development/Frontend/React/9. State Management, useContext Hook.md",
+    "Web Development/Basics/Javascript/2. Web Storage API.md",
+    "Web Development/Basics/Javascript/1. Basics.md",
+    "Web Development/Basics/TypeScript/4. Classes & Objects.md",
+    "Web Development/Basics/Javascript",
     "Web Development/Basics/JavaScript (Advanced Crash Course).md",
-    "Web Development/Basics/TypeScript",
+    "Web Development/Basics/TypeScript/3. Interface and Types.md",
+    "Web Development/Basics/TypeScript/1. Installing.md",
+    "Web Development/Basics/TypeScript/2. Types.md",
     "Web Development/FullStack/NextJS/5. Layout.js, Conditional component.md",
     "Web Development/FullStack/NextJS/4. Server vs Client side Rendering.md",
     "Web Development/FullStack/NextJS/3. Routing, Links, useRouter Hook, Dynamic router and Catching routes, Redirects.md",
     "Web Development/FullStack/NextJS/2. Setup.md",
     "Web Development/FullStack/NextJS/1. What is NextJS.md",
+    "Web Development/Frontend/React/6. Component Lifecycle, useEffect Hook.md",
+    "Web Development/Frontend/React.md",
     "Web Development/Overview.canvas",
+    "Web Development/Basics/TypeScript",
     "Web Development/FullStack/NextJS/Untitled",
     "Pasted image 20241007212316.png",
     "Web Development/FullStack/NextJS",
     "Web Development/FullStack",
-    "Web Development/Frontend/React/13. Type Safety, TypeScript.md",
-    "Web Development/Frontend/React/12. Custom Hook.md",
-    "Web Development/Frontend/React/11. React Forms.md",
-    "Web Development/Frontend/React/10. React query.md",
-    "Web Development/Frontend/React/9. State Management, useContext Hook.md",
-    "Web Development/Frontend/React/8. React Router DOM.md",
     "Web Development/Frontend/React/7. Fetching Data from API.md",
-    "Web Development/Frontend/React/6. Component Lifecycle, useEffect Hook.md",
-    "Web Development/Frontend/React/5. To-Do app.md",
-    "Web Development/Frontend/React/2. JSX, Components and Props.md",
-    "Web Development/Frontend/React/1. Setup (Basic).md",
-    "Web Development/Frontend/React/4. States, useState Hook.md",
-    "Web Development/Frontend/React/3. Ternary Operators, Lists and CSS, Exporting components.md",
-    "Web Development/Backend/Basics of Internet.md",
-    "Web Development/Frontend/React.md",
     "Web Development/Basics",
     "Untitled",
     "Web Development/Frontend/React",
     "Web Development/Frontend",
-    "README.md",
     "Untitled.canvas",
-    "Web Development/Backend",
-    "Untitled.md",
-    "Web Development",
-    "Untitled Kanban.md"
+    "Web Development/Backend"
   ]
 }
