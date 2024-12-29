@@ -27,12 +27,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Web Development/Frontend/React/3. Ternary Operators, Lists and CSS, Exporting components.md",
+                "file": "Web Development/Frontend/React/9. State Management, useContext Hook.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "3. Ternary Operators, Lists and CSS, Exporting components"
+              "title": "9. State Management, useContext Hook"
             }
           }
         ],
@@ -243,6 +243,12 @@
   },
   "active": "c689a44535f93243",
   "lastOpenFiles": [
+    "Web Development/Frontend/React/8. React Router DOM.md",
+    "Web Development/Frontend/React/7. Fetching Data from API.md",
+    "Web Development/Frontend/React/6. Component Lifecycle, useEffect Hook.md",
+    "Web Development/Frontend/React/5. To-Do app.md",
+    "Web Development/Frontend/React/4. States, useState Hook.md",
+    "Web Development/Frontend/React/3. Ternary Operators, Lists and CSS, Exporting components.md",
     "Web Development/Frontend/React/2. JSX, Components and Props.md",
     "Web Development/Frontend/React/1. Setup (Basic).md",
     "Web Development/Backend/Basics of Internet.md",
@@ -254,17 +260,11 @@
     "Web Development/Frontend/React.md",
     "Web Development/Frontend/React/13. Type Safety, TypeScript.md",
     "Web Development/Frontend/React/10. React query.md",
-    "Web Development/Frontend/React/8. React Router DOM.md",
-    "Web Development/Frontend/React/7. Fetching Data from API.md",
-    "Web Development/Frontend/React/6. Component Lifecycle, useEffect Hook.md",
-    "Web Development/Frontend/React/4. States, useState Hook.md",
-    "Web Development/Frontend/React/3. Ternary Operators, Lists and CSS, Exporting components.md",
     "Web Development/FullStack/NextJS/3. Routing, Links, useRouter Hook, Dynamic router and Catching routes, Redirects.md",
     "Web Development/Frontend/React/9. State Management, useContext Hook.md",
     "Web Development/Basics/Javascript/1. Basics.md",
     "Web Development/Basics/Javascript/2. Web Storage API, Modules, Fetch, Async await and Promises.md",
     "Web Development/Frontend/React/11. React Forms.md",
-    "Web Development/Frontend/React/5. To-Do app.md",
     "Web Development/Basics/TypeScript/4. Classes & Objects.md",
     "Web Development/Basics/Javascript",
     "Web Development/Basics/JavaScript (Advanced Crash Course).md",
