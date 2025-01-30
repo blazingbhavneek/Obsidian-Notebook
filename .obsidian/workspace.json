@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Web Development/Basics/Web Design Ideas.md",
+                "file": "Web Development/Frontend/Framer Motion/3. Scroll.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Web Design Ideas"
+              "title": "3. Scroll"
             }
           }
         ]
@@ -77,7 +77,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 330.5024719238281
+    "width": 200
   },
   "right": {
     "id": "df5449a757fb8bbe",
@@ -236,7 +236,7 @@
             }
           },
           {
-            "id": "9e9d63cab14ccb21",
+            "id": "952415277ac99cc0",
             "type": "leaf",
             "state": {
               "type": "review-queue-list-view",
@@ -246,7 +246,7 @@
             }
           },
           {
-            "id": "70a3fe8348218f7c",
+            "id": "adab76278052fe0e",
             "type": "leaf",
             "state": {
               "type": "review-queue-list-view",
@@ -256,17 +256,7 @@
             }
           },
           {
-            "id": "613a8c98bc83510c",
-            "type": "leaf",
-            "state": {
-              "type": "review-queue-list-view",
-              "state": {},
-              "icon": "SpacedRepIcon",
-              "title": "Notes Review Queue"
-            }
-          },
-          {
-            "id": "b5f02293815df20a",
+            "id": "18104e6d3baaf48c",
             "type": "leaf",
             "state": {
               "type": "review-queue-list-view",
@@ -292,23 +282,19 @@
       "command-palette:Open command palette": false,
       "obsidian-kanban:Create new board": false,
       "obsidian-spaced-repetition:Review flashcards": false,
-      "obsidian-git:Open Git source control": false,
-      "omnisearch:Omnisearch": false
+      "omnisearch:Omnisearch": false,
+      "obsidian-git:Open Git source control": false
     }
   },
   "active": "6446bdab49bb633f",
   "lastOpenFiles": [
-    "Web Development/Frontend/Framer Motion/3. Scroll.md",
     "Web Development/Frontend/Framer Motion/2. Transitions.md",
     "Web Development/Frontend/Framer Motion/1. Overview.md",
-    "Web Development/Basics/Web Design Ideas.md",
-    "Web Development/Frontend/Framer Motion",
-    "Untitled.canvas",
-    "Web Development/Frontend/GSAP/1..md",
+    "Web Development/Frontend/Framer Motion/3. Scroll.md",
     "CSharp/1. WPF Syntax.md",
     "CSharp",
-    "Web Development/Frontend/GSAP",
     "Web Development/Frontend/React/3. Ternary Operators, Lists and CSS, Exporting components.md",
+    "Web Development/Frontend/Framer Motion",
     "Web Development/Frontend/React/2. JSX, Components and Props.md",
     "Web Development/Frontend/React/8. React Router DOM.md",
     "Web Development/Frontend/React/7. Fetching Data from API.md",
@@ -318,6 +304,7 @@
     "Web Development/Frontend/React/9. State Management, useContext Hook.md",
     "Web Development/Frontend/React/1. Setup (Basic).md",
     "Web Development/Basics/CSS.md",
+    "Web Development/Basics/Web Design Ideas.md",
     "Web Development/Basics/TypeScript/1. Installing.md",
     "Web Development/FullStack/NextJS/2. Setup.md",
     "Web Development/Basics/CSS/Tailwind",
@@ -332,10 +319,13 @@
     "Web Development/Frontend/Tailwind/1. Basics, UI rules.md",
     "Web Development/Basics/Javascript/2. Web Storage API, Modules, Fetch, Async await and Promises.md",
     "Web Development/Basics/Javascript/1. Basics.md",
+    "Web Development/Basics/TypeScript/4. Classes & Objects.md",
     "Web Development/Frontend/Tailwind",
+    "Untitled.canvas",
     "Web Development/Basics/Javascript",
     "Web Development/Overview.canvas",
     "Web Development/Basics/TypeScript",
+    "Web Development/FullStack/NextJS/Untitled",
     "Pasted image 20241007212316.png"
   ]
 }
