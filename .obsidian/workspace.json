@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Web Development/Basics/Web Design Ideas.md",
+                "file": "C++/1. How CPP Works.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Web Design Ideas"
+              "title": "1. How CPP Works"
             }
           }
         ]
@@ -73,7 +73,8 @@
               "title": "Bookmarks"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "horizontal",
@@ -261,12 +262,22 @@
             "state": {
               "type": "review-queue-list-view",
               "state": {},
-              "icon": "SpacedRepIcon",
-              "title": "Notes Review Queue"
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
             }
           },
           {
             "id": "b5f02293815df20a",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
+            }
+          },
+          {
+            "id": "aee205bd2d3c5e62",
             "type": "leaf",
             "state": {
               "type": "review-queue-list-view",
@@ -298,15 +309,15 @@
   },
   "active": "6446bdab49bb633f",
   "lastOpenFiles": [
+    "Web Development/Basics/Web Design Ideas.md",
     "Web Development/Frontend/Framer Motion/3. Scroll.md",
     "Web Development/Frontend/Framer Motion/2. Transitions.md",
     "Web Development/Frontend/Framer Motion/1. Overview.md",
-    "Web Development/Basics/Web Design Ideas.md",
     "Web Development/Frontend/Framer Motion",
     "Untitled.canvas",
     "Web Development/Frontend/GSAP/1..md",
-    "CSharp/1. WPF Syntax.md",
-    "CSharp",
+    "C++/1. How CPP Works.md",
+    "C++",
     "Web Development/Frontend/GSAP",
     "Web Development/Frontend/React/3. Ternary Operators, Lists and CSS, Exporting components.md",
     "Web Development/Frontend/React/2. JSX, Components and Props.md",
