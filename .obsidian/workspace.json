@@ -4,7 +4,7 @@
     "type": "split",
     "children": [
       {
-        "id": "60e33e898f6c95c5",
+        "id": "daac888e9ca9e388",
         "type": "tabs",
         "children": [
           {
@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "C++/1. How CPP Works.md",
+                "file": "C++/2. Arrays, Strings, Literals.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "1. How CPP Works"
+              "title": "2. Arrays, Strings, Literals"
             }
           }
         ]
@@ -31,11 +31,11 @@
     "type": "split",
     "children": [
       {
-        "id": "73ce5af942c13e8a",
+        "id": "27ffb800316de6c5",
         "type": "tabs",
         "children": [
           {
-            "id": "3e53be3b05f8c122",
+            "id": "d98521a40319d7c9",
             "type": "leaf",
             "state": {
               "type": "file-explorer",
@@ -48,7 +48,7 @@
             }
           },
           {
-            "id": "ac6974127f1bd4be",
+            "id": "86bb3f3211f2a3fb",
             "type": "leaf",
             "state": {
               "type": "search",
@@ -65,7 +65,7 @@
             }
           },
           {
-            "id": "ffd1be63238a5fc1",
+            "id": "0651ec9884e3d28b",
             "type": "leaf",
             "state": {
               "type": "bookmarks",
@@ -78,7 +78,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 330.5024719238281
+    "width": 200
   },
   "right": {
     "id": "df5449a757fb8bbe",
@@ -292,12 +292,32 @@
             "state": {
               "type": "review-queue-list-view",
               "state": {},
-              "icon": "SpacedRepIcon",
-              "title": "Notes Review Queue"
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
             }
           },
           {
             "id": "78000f349b92c816",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
+            }
+          },
+          {
+            "id": "beade1d05d8188d2",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
+            }
+          },
+          {
+            "id": "8d6c7fdea97854ec",
             "type": "leaf",
             "state": {
               "type": "review-queue-list-view",
@@ -327,10 +347,13 @@
       "omnisearch:Omnisearch": false
     }
   },
-  "active": "3e53be3b05f8c122",
+  "active": "6446bdab49bb633f",
   "lastOpenFiles": [
+    "C++/1. Building CPP, Pointers and basics of OOPS.md",
+    "C++/2. Arrays, Strings, Literals.md",
+    "C++/Untitled.canvas",
+    "C++/Untitled 1.canvas",
     "Untitled 1.canvas",
-    "C++/1. How CPP Works.md",
     "Untitled.canvas",
     "conflict-files-obsidian-git.md",
     "Web Development/Basics/Web Design Ideas.md",
