@@ -1,9 +1,0 @@
-{
-	"nodes":[
-		{"id":"03f70926a5ab9bb3","type":"text","text":"Array Reverse\n1. name at compile time\n2. Returns a function pointer at create() method\n3. ","x":-500,"y":-128,"width":487,"height":388},
-		{"id":"ec9b86720e5be97c","x":60,"y":-340,"width":250,"height":60,"type":"text","text":"Inherits: IFunction"}
-	],
-	"edges":[
-		{"id":"6060d3bde2916923","fromNode":"03f70926a5ab9bb3","fromSide":"right","toNode":"ec9b86720e5be97c","toSide":"left"}
-	]
-}
