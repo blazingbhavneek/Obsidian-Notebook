@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "C++/2. Arrays, Strings, Literals.md",
+                "file": "C++/3. Keywords and Operators.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "2. Arrays, Strings, Literals"
+              "title": "3. Keywords and Operators"
             }
           }
         ]
@@ -349,8 +349,9 @@
   },
   "active": "6446bdab49bb633f",
   "lastOpenFiles": [
+    "C++/2. Arrays, Strings and Literals.md",
+    "C++/3. Keywords and Operators.md",
     "C++/1. Building CPP, Pointers and basics of OOPS.md",
-    "C++/2. Arrays, Strings, Literals.md",
     "C++/Untitled.canvas",
     "C++/Untitled 1.canvas",
     "Untitled 1.canvas",
@@ -385,7 +386,6 @@
     "Web Development/FullStack/NextJS/6. Image optimizations, Fonts, Fetch.md",
     "Web Development/FullStack/NextJS/5. Layout.js, Conditional component, metadata.md",
     "Web Development/FullStack/NextJS/1. What is NextJS.md",
-    "Web Development/Frontend/Tailwind/1. Basics, UI rules.md",
     "Web Development/Frontend/Tailwind",
     "Web Development/Basics/Javascript",
     "Web Development/Overview.canvas",
