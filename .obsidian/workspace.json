@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "C++/4. Objects, Smart Pointers and Vector Optimisations.md",
+                "file": "C++/5. Static, Singleton Classes?,.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "4. Objects, Smart Pointers and Vector Optimisations"
+              "title": "5. Static, Singleton Classes?,"
             }
           }
         ]
@@ -349,8 +349,8 @@
   },
   "active": "6446bdab49bb633f",
   "lastOpenFiles": [
-    "C++/3. Keywords and Operators.md",
     "C++/4. Objects, Smart Pointers and Vector Optimisations.md",
+    "C++/3. Keywords and Operators.md",
     "C++/5. Static, Singleton Classes?,.md",
     "C++/2. Arrays, Strings and Literals.md",
     "C++/Untitled.canvas",
