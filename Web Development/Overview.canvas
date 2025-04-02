@@ -2,7 +2,7 @@
 	"nodes":[
 		{"id":"aadba3466c3522c1","type":"text","text":"Web Development","x":-200,"y":260,"width":250,"height":60},
 		{"id":"142b618157209c1b","type":"text","text":"Basics","x":671,"y":-661,"width":250,"height":60},
-		{"id":"159d2899d8270749","type":"file","file":"Web Development/Backend/Basics of Internet.md","x":1017,"y":-920,"width":623,"height":259},
+		{"id":"159d2899d8270749","type":"file","file":"Web Development/Backend/1. Basics of Internet.md","x":1017,"y":-920,"width":623,"height":259},
 		{"id":"0e87614bf76429ed","type":"text","text":"Backend","x":320,"y":-481,"width":250,"height":50},
 		{"id":"f55ad7958cb79a2f","x":474,"y":252,"width":250,"height":60,"type":"text","text":"Full Stack"}
 	],

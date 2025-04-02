@@ -20,8 +20,37 @@
               "icon": "lucide-file",
               "title": "5. Static, Multiple returns, Templates and Macros"
             }
+          },
+          {
+            "id": "af567bda40a3ed76",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Web Development/Backend/1. Basics of Internet.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "1. Basics of Internet"
+            }
+          },
+          {
+            "id": "59daea7d56d727ca",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Web Development/Backend/8. Backend Communication Protocols.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "8. Backend Communication Protocols"
+            }
           }
-        ]
+        ],
+        "currentTab": 2
       }
     ],
     "direction": "vertical"
@@ -322,6 +351,26 @@
             "state": {
               "type": "review-queue-list-view",
               "state": {},
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
+            }
+          },
+          {
+            "id": "4f421367dff2e673",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "SpacedRepIcon",
+              "title": "Notes Review Queue"
+            }
+          },
+          {
+            "id": "9f450b04a0e7924d",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
               "icon": "SpacedRepIcon",
               "title": "Notes Review Queue"
             }
@@ -347,12 +396,29 @@
       "omnisearch:Omnisearch": false
     }
   },
-  "active": "a0d882203c103598",
+  "active": "59daea7d56d727ca",
   "lastOpenFiles": [
-    "C++/4. Objects, Smart Pointers and Vector Optimisations.md",
-    "C++/3. Keywords and Operators.md",
-    "C++/5. Static, Multiple returns, Templates and Macros.md",
+    "Web Development/Backend/3. MongoDB Basics.md",
+    "Web Development/Backend/8. Backend Communication Protocols.md",
+    "Web Development/Backend/4. MongoDB Schema Design.md",
+    "Web Development/Backend/7. MongoDB GridFS (later).md",
+    "Web Development/Backend/6. MongoDB Transactions & Security.md",
+    "Web Development/Backend/5. MongoDB Sharding.md",
+    "Web Development/Backend/2. Async nature of JS.md",
+    "Web Development/Backend/1. Basics of Internet.md",
+    "Web Development/Overview.canvas",
+    "Web Development/Frontend/React/1. Setup (Basic).md",
+    "Web Development/Frontend/React/2. JSX, Components and Props.md",
+    "Web Development/Frontend/React/3. Ternary Operators, Lists and CSS, Exporting components.md",
+    "Web Development/Frontend/React/8. React Router DOM.md",
+    "Web Development/Frontend/React/10. React query.md",
+    "Web Development/Frontend/Framer Motion/2. Transitions.md",
+    "Web Development/Frontend/Framer Motion/1. Overview.md",
+    "Web Development/Frontend/Framer Motion/3. Scroll.md",
     "C++/2. Arrays, Strings and Literals.md",
+    "C++/4. Objects, Smart Pointers and Vector Optimisations.md",
+    "C++/5. Static, Multiple returns, Templates and Macros.md",
+    "C++/3. Keywords and Operators.md",
     "C++/Untitled.canvas",
     "C++/1. Building CPP, Pointers and basics of OOPS.md",
     "C++/Untitled 1.canvas",
@@ -360,35 +426,18 @@
     "Untitled.canvas",
     "conflict-files-obsidian-git.md",
     "Web Development/Basics/Web Design Ideas.md",
-    "Web Development/Frontend/Framer Motion/3. Scroll.md",
-    "Web Development/Frontend/Framer Motion/2. Transitions.md",
-    "Web Development/Frontend/Framer Motion/1. Overview.md",
     "Web Development/Frontend/Framer Motion",
     "Web Development/Frontend/GSAP/1..md",
     "C++",
     "Web Development/Frontend/GSAP",
-    "Web Development/Frontend/React/3. Ternary Operators, Lists and CSS, Exporting components.md",
-    "Web Development/Frontend/React/2. JSX, Components and Props.md",
-    "Web Development/Frontend/React/8. React Router DOM.md",
     "Web Development/Frontend/React/7. Fetching Data from API.md",
     "Web Development/Frontend/React/6. Component Lifecycle, useEffect Hook.md",
-    "Web Development/Frontend/React/5. To-Do app.md",
-    "Web Development/Frontend/React/4. States, useState Hook.md",
-    "Web Development/Frontend/React/9. State Management, useContext Hook.md",
-    "Web Development/Frontend/React/1. Setup (Basic).md",
-    "Web Development/Basics/CSS.md",
-    "Web Development/Basics/TypeScript/1. Installing.md",
-    "Web Development/FullStack/NextJS/2. Setup.md",
     "Web Development/Basics/CSS/Tailwind",
     "Web Development/Basics/CSS/Properties/Untitled",
     "Web Development/Basics/CSS/Properties",
     "Web Development/Basics/CSS",
-    "Web Development/FullStack/NextJS/3. Routing, Links, useRouter Hook, Dynamic router and Catching routes, Redirects.md",
-    "Web Development/FullStack/NextJS/4. Server vs Client side Rendering.md",
-    "Web Development/FullStack/NextJS/6. Image optimizations, Fonts, Fetch.md",
     "Web Development/Frontend/Tailwind",
     "Web Development/Basics/Javascript",
-    "Web Development/Overview.canvas",
     "Web Development/Basics/TypeScript",
     "Pasted image 20241007212316.png"
   ]
