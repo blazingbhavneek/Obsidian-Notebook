@@ -53,13 +53,14 @@
             "id": "6b386feed0354c3b",
             "type": "leaf",
             "state": {
-              "type": "diff-view",
+              "type": "markdown",
               "state": {
-                "file": ".obsidian/workspace.json",
-                "staged": false
+                "file": "Web Development/Backend/13. Websockets & Socket.io.md",
+                "mode": "source",
+                "source": false
               },
-              "icon": "git-pull-request",
-              "title": "Diff View (workspace.json)"
+              "icon": "lucide-file",
+              "title": "13. Websockets & Socket.io"
             }
           }
         ],
@@ -414,12 +415,22 @@
             "state": {
               "type": "review-queue-list-view",
               "state": {},
-              "icon": "SpacedRepIcon",
-              "title": "Notes Review Queue"
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
             }
           },
           {
             "id": "948c725db18ffd2e",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
+            }
+          },
+          {
+            "id": "b7c4cf3e87c722ae",
             "type": "leaf",
             "state": {
               "type": "review-queue-list-view",
@@ -451,20 +462,23 @@
   },
   "active": "6b386feed0354c3b",
   "lastOpenFiles": [
+    "Web Development/Backend/12. Zod.md",
+    "Web Development/Backend/13. Websockets & Socket.io.md",
+    "Web Development/FullStack/TurboRepo.md",
+    "Web Development/Untitled.md",
+    "Web Development/Backend/9. Express fundamentals.md",
+    "Web Development/Backend/8. Backend Communication Protocols.md",
     "Web Development/Backend/10. Mongoose ODM.md",
+    "Web Development/Backend/11. Authentication and Authorization.md",
     "Web Development/Backend/3. MongoDB Basics.md",
     "Web Development/Backend/2. Async nature of JS.md",
     "Web Development/Backend/1. Basics of Internet.md",
-    "Web Development/Backend/12. Zod.md",
     "Web Development/FullStack/NextJS/2. Setup.md",
     "Web Development/FullStack/NextJS/3. Routing, Links, useRouter Hook, Dynamic router and Catching routes, Redirects.md",
     "Web Development/FullStack/NextJS/1. What is NextJS.md",
     "C++/5. Static, Multiple returns, Templates and Macros.md",
     "Web Development/Backend/4. MongoDB Schema Design.md",
-    "Web Development/Backend/11. Authentication and Authorization.md",
     "Web Development/Backend/5. MongoDB Sharding.md",
-    "Web Development/Backend/9. Express fundamentals.md",
-    "Web Development/Backend/8. Backend Communication Protocols.md",
     "Web Development/Backend/7. MongoDB GridFS (later).md",
     "Web Development/Backend/6. MongoDB Transactions & Security.md",
     "Web Development/Overview.canvas",
@@ -475,9 +489,6 @@
     "Web Development/Frontend/React/10. React query.md",
     "Web Development/Frontend/Framer Motion/2. Transitions.md",
     "Web Development/Frontend/Framer Motion/1. Overview.md",
-    "Web Development/Frontend/Framer Motion/3. Scroll.md",
-    "C++/2. Arrays, Strings and Literals.md",
-    "C++/4. Objects, Smart Pointers and Vector Optimisations.md",
     "C++/Untitled.canvas",
     "C++/Untitled 1.canvas",
     "Untitled 1.canvas",
