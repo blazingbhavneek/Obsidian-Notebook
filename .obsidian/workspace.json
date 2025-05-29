@@ -55,12 +55,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Web Development/Backend/13. Websockets & Socket.io.md",
+                "file": "Web Development/AI/Langchain/5. Agent Scratchpad, Runnable Serialisable, Custom Agent Executor.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "13. Websockets & Socket.io"
+              "title": "5. Agent Scratchpad, Runnable Serialisable, Custom Agent Executor"
             }
           }
         ],
@@ -445,6 +445,36 @@
             "state": {
               "type": "review-queue-list-view",
               "state": {},
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
+            }
+          },
+          {
+            "id": "e763f87aa2d5bd08",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
+            }
+          },
+          {
+            "id": "5a12fc6cfc55f45d",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "SpacedRepIcon",
+              "title": "Notes Review Queue"
+            }
+          },
+          {
+            "id": "59e1e6611c8e34cc",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
               "icon": "SpacedRepIcon",
               "title": "Notes Review Queue"
             }
@@ -472,33 +502,36 @@
   },
   "active": "6b386feed0354c3b",
   "lastOpenFiles": [
+    "Web Development/AI/Langchain/6. Output Parser, VectorDB, LCEL & Runnable Lambda, Parallel & Passthrough.md",
+    "Web Development/AI/Langchain/5. Agent Scratchpad, Runnable Serialisable, Custom Agent Executor.md",
+    "Web Development/AI/Langchain/4. Tools, Agents and Executers.md",
+    "Web Development/AI/Langchain/3. Conversation Memory, Chains and Runnables.md",
+    "Web Development/AI/Langchain/2. Few shot prompting, Chain of Thought & LangSmith.md",
+    "Web Development/AI/Langchain/1. Setup, Prompts, Chaining and Structured Outputs.md",
+    "Web Development/AI/Langchain",
+    "Web Development/FullStack/NextJS/6. Image optimizations, Fonts, Fetch.md",
+    "Web Development/FullStack/NextJS/5. Layout.js, Conditional component, metadata.md",
+    "Web Development/FullStack/NextJS/3. Routing, Links, useRouter Hook, Dynamic router and Catching routes, Redirects.md",
+    "Web Development/FullStack/NextJS/2. Setup.md",
+    "Web Development/Frontend/React/10. React query.md",
+    "Web Development/Frontend/React/11. React Forms.md",
+    "Web Development/Frontend/React/7. Fetching Data from API.md",
+    "Web Development/Frontend/React/4. States, useState Hook.md",
+    "Web Development/Frontend/React/2. JSX, Components and Props.md",
+    "Web Development/Backend/5. MongoDB Sharding.md",
     "Web Development/Backend/12. Zod.md",
     "Web Development/Backend/13. Websockets & Socket.io.md",
+    "Web Development/Backend/11. Authentication and Authorization.md",
+    "Web Development/Backend/7. MongoDB GridFS (later).md",
+    "Web Development/Backend/10. Mongoose ODM.md",
+    "Pasted image 20250528093356.png",
     "Web Development/FullStack/TurboRepo.md",
+    "Web Development/AI",
+    "Web Development/Frontend/React/12. Custom Hook.md",
     "Web Development/Untitled.md",
     "Web Development/Backend/9. Express fundamentals.md",
     "Web Development/Backend/8. Backend Communication Protocols.md",
-    "Web Development/Backend/10. Mongoose ODM.md",
-    "Web Development/Backend/11. Authentication and Authorization.md",
-    "Web Development/Backend/3. MongoDB Basics.md",
-    "Web Development/Backend/2. Async nature of JS.md",
-    "Web Development/Backend/1. Basics of Internet.md",
-    "Web Development/FullStack/NextJS/2. Setup.md",
-    "Web Development/FullStack/NextJS/3. Routing, Links, useRouter Hook, Dynamic router and Catching routes, Redirects.md",
-    "Web Development/FullStack/NextJS/1. What is NextJS.md",
-    "C++/5. Static, Multiple returns, Templates and Macros.md",
-    "Web Development/Backend/4. MongoDB Schema Design.md",
-    "Web Development/Backend/5. MongoDB Sharding.md",
-    "Web Development/Backend/7. MongoDB GridFS (later).md",
-    "Web Development/Backend/6. MongoDB Transactions & Security.md",
     "Web Development/Overview.canvas",
-    "Web Development/Frontend/React/1. Setup (Basic).md",
-    "Web Development/Frontend/React/2. JSX, Components and Props.md",
-    "Web Development/Frontend/React/3. Ternary Operators, Lists and CSS, Exporting components.md",
-    "Web Development/Frontend/React/8. React Router DOM.md",
-    "Web Development/Frontend/React/10. React query.md",
-    "Web Development/Frontend/Framer Motion/2. Transitions.md",
-    "Web Development/Frontend/Framer Motion/1. Overview.md",
     "C++/Untitled.canvas",
     "C++/Untitled 1.canvas",
     "Untitled 1.canvas",
@@ -511,8 +544,6 @@
     "Web Development/Basics/CSS/Properties",
     "Web Development/Basics/CSS",
     "Web Development/Frontend/Tailwind",
-    "Web Development/Basics/Javascript",
-    "Web Development/Basics/TypeScript",
     "Pasted image 20241007212316.png"
   ]
 }
