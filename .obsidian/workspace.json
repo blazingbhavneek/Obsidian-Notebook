@@ -69,12 +69,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Devops/Docker/2. Commands, Shell, Networking basics.md",
+                "file": "Japanese/N4/新日本語500.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "2. Commands, Shell, Networking basics"
+              "title": "新日本語500"
             }
           }
         ],
@@ -135,7 +135,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 200
+    "width": 200,
+    "collapsed": true
   },
   "right": {
     "id": "df5449a757fb8bbe",
@@ -197,10 +198,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Web Development/FullStack/NextJS/5. Layout.js, Conditional component.md"
+                "file": "Japanese/N4/新日本語500.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of 5. Layout.js, Conditional component"
+              "title": "Outline of 新日本語500"
             }
           },
           {
@@ -499,12 +503,32 @@
             "state": {
               "type": "review-queue-list-view",
               "state": {},
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
+            }
+          },
+          {
+            "id": "4d387e017e7cd9b0",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
+            }
+          },
+          {
+            "id": "a3ae7d9969c6ba5b",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
               "icon": "SpacedRepIcon",
               "title": "Notes Review Queue"
             }
           },
           {
-            "id": "4d387e017e7cd9b0",
+            "id": "94d41847a95c47cc",
             "type": "leaf",
             "state": {
               "type": "review-queue-list-view",
@@ -536,6 +560,17 @@
   },
   "active": "318e4057f4443dc8",
   "lastOpenFiles": [
+    "Pasted image 20250623112305.png",
+    "Pasted image 20250528093356.png",
+    "Japanese/N4/新日本語500.md",
+    "Japanese/Untitled.md",
+    "Japanese/N4",
+    "Japanese",
+    "Web Development/Untitled",
+    "Devops/Docker/6. Docker Compose.md",
+    "Devops/Docker/5. Buildtime, Entrypoint, Shell & Exec.md",
+    "Devops/Docker/4. Volumes, Persistant data & Bind mounts.md",
+    "Devops/Docker/3. Docker Images, Container Creation, Build Cache, Tagging.md",
     "Devops/Docker/2. Commands, Shell, Networking basics.md",
     "Devops/Docker/1. Basics.md",
     "Web Development/AI/Langchain/3. Conversation Memory, Chains and Runnables.md",
@@ -558,15 +593,7 @@
     "Web Development/Frontend/React/7. Fetching Data from API.md",
     "Web Development/Frontend/React/4. States, useState Hook.md",
     "Web Development/Frontend/React/2. JSX, Components and Props.md",
-    "Web Development/Backend/5. MongoDB Sharding.md",
-    "Web Development/Backend/12. Zod.md",
-    "Web Development/Backend/13. Websockets & Socket.io.md",
-    "Web Development/Backend/11. Authentication and Authorization.md",
-    "Web Development/Backend/7. MongoDB GridFS (later).md",
-    "Web Development/Backend/10. Mongoose ODM.md",
-    "Pasted image 20250528093356.png",
     "Web Development/AI",
-    "Web Development/Frontend/React/12. Custom Hook.md",
     "Web Development/Overview.canvas",
     "C++/Untitled.canvas",
     "C++/Untitled 1.canvas",
@@ -575,9 +602,6 @@
     "Web Development/Frontend/Framer Motion",
     "C++",
     "Web Development/Frontend/GSAP",
-    "Web Development/Basics/CSS/Tailwind",
-    "Web Development/Basics/CSS/Properties/Untitled",
-    "Web Development/Basics/CSS/Properties",
     "Pasted image 20241007212316.png"
   ]
 }
