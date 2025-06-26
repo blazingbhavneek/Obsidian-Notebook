@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Japanese/N4/新日本語500.md",
+                "file": "Devops/Docker/6. Docker Compose.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "新日本語500"
+              "title": "6. Docker Compose"
             }
           }
         ]
@@ -140,13 +140,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Japanese/N4/新日本語500.md",
+                "file": "Devops/Docker/6. Docker Compose.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of 新日本語500"
+              "title": "Outline of 6. Docker Compose"
             }
           },
           {
@@ -502,6 +502,7 @@
   },
   "active": "71735a4a6eccd7a7",
   "lastOpenFiles": [
+    "Japanese/N4/新日本語500.md",
     "Web Development/AI/Langchain/4. Tools, Agents and Executers.md",
     "Web Development/Backend/3. MongoDB Basics.md",
     "Web Development/Backend/1. Basics of Internet.md",
@@ -509,7 +510,6 @@
     "images/Pasted image 20250528093356.png",
     "images/Pasted image 20250623165801.png",
     "images/Pasted image 20250623112305.png",
-    "Japanese/N4/新日本語500.md",
     "images",
     "images/Pasted image 20250623170850.png",
     "images/Pasted image 20250623170820.png",
