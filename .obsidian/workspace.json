@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Devops/Docker/6. Docker Compose.md",
+                "file": "README.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "6. Docker Compose"
+              "title": "README"
             }
           }
         ]
@@ -140,13 +140,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Devops/Docker/6. Docker Compose.md",
+                "file": "Japanese/N4/新日本語500.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of 6. Docker Compose"
+              "title": "Outline of 新日本語500"
             }
           },
           {
@@ -465,12 +465,72 @@
             "state": {
               "type": "review-queue-list-view",
               "state": {},
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
+            }
+          },
+          {
+            "id": "94d41847a95c47cc",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
+            }
+          },
+          {
+            "id": "43bcbf5bf758ff0f",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
+            }
+          },
+          {
+            "id": "b41abe3783fe2b19",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
+            }
+          },
+          {
+            "id": "a1b6048bf9fe8324",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
+            }
+          },
+          {
+            "id": "20c92595c5ccb638",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "Plugin no longer active"
+            }
+          },
+          {
+            "id": "2b23100ee870ba27",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
               "icon": "SpacedRepIcon",
               "title": "Notes Review Queue"
             }
           },
           {
-            "id": "94d41847a95c47cc",
+            "id": "de0db5ef58481df7",
             "type": "leaf",
             "state": {
               "type": "review-queue-list-view",
@@ -502,7 +562,15 @@
   },
   "active": "71735a4a6eccd7a7",
   "lastOpenFiles": [
+    "Web Development/Overview.canvas",
+    "README.md",
+    "Devops/Docker/3. Docker Images, Container Creation, Build Cache, Tagging.md",
+    "Devops/Docker/2. Commands, Shell, Networking basics.md",
+    "Devops/Docker/5. Buildtime, Entrypoint, Shell & Exec.md",
+    "Devops/Docker/4. Volumes, Persistant data & Bind mounts.md",
+    "Japanese/N4/Checklist.md",
     "Japanese/N4/新日本語500.md",
+    "Devops/Docker/6. Docker Compose.md",
     "Web Development/AI/Langchain/4. Tools, Agents and Executers.md",
     "Web Development/Backend/3. MongoDB Basics.md",
     "Web Development/Backend/1. Basics of Internet.md",
@@ -518,11 +586,6 @@
     "Japanese/N4",
     "Japanese",
     "Web Development/Untitled",
-    "Devops/Docker/6. Docker Compose.md",
-    "Devops/Docker/5. Buildtime, Entrypoint, Shell & Exec.md",
-    "Devops/Docker/4. Volumes, Persistant data & Bind mounts.md",
-    "Devops/Docker/3. Docker Images, Container Creation, Build Cache, Tagging.md",
-    "Devops/Docker/2. Commands, Shell, Networking basics.md",
     "Devops/Docker/1. Basics.md",
     "Web Development/AI/Langchain/3. Conversation Memory, Chains and Runnables.md",
     "Devops/Docker",
@@ -538,11 +601,7 @@
     "Web Development/FullStack/NextJS/5. Layout.js, Conditional component, metadata.md",
     "Web Development/FullStack/NextJS/3. Routing, Links, useRouter Hook, Dynamic router and Catching routes, Redirects.md",
     "Web Development/FullStack/NextJS/2. Setup.md",
-    "Web Development/Frontend/React/10. React query.md",
-    "Web Development/Frontend/React/11. React Forms.md",
-    "Web Development/Frontend/React/7. Fetching Data from API.md",
     "Web Development/AI",
-    "Web Development/Overview.canvas",
     "C++/Untitled.canvas",
     "C++/Untitled 1.canvas",
     "Untitled 1.canvas",

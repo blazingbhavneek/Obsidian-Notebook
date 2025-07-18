@@ -1,0 +1,8 @@
+- [x] N5 Kanji
+- [x] Transitive -eru verbs
+- [x] Counter suffixes
+- [x] Days of month
+- [x] Hiragana katakana
+- [x] Particle odd uses
+- [x] Forms of verbs
+- [x] Adverbs
