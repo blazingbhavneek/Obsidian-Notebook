@@ -1,0 +1,4 @@
+- What is SGLang
+	- High performance LLM serving framework for maximum throughput across various hardware configuration
+	- SRT: Serving runtime
+	- SGLang uses a multi-process architecture with inter-process communication (IPC) via ZMQ sockets. 
