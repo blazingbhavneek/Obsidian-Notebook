@@ -4,53 +4,24 @@
     "type": "split",
     "children": [
       {
-        "id": "5e9078f4596ef9be",
+        "id": "16b163ef4aa76aa1",
         "type": "tabs",
         "children": [
           {
-            "id": "71735a4a6eccd7a7",
+            "id": "e0e07b6673b467b2",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "AI/SGLang/Overview.md",
+                "file": "AI/SGLang/Model Implementations.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Overview"
-            }
-          },
-          {
-            "id": "11599148e9ebb5d5",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "AI/Local LLM Hosting.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "Local LLM Hosting"
-            }
-          },
-          {
-            "id": "f9e1cc4e2d10b93b",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "AI/SGLang/Overview.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "Overview"
+              "title": "Model Implementations"
             }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "vertical"
@@ -107,7 +78,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 200
+    "width": 200,
+    "collapsed": true
   },
   "right": {
     "id": "df5449a757fb8bbe",
@@ -574,6 +546,26 @@
             "state": {
               "type": "review-queue-list-view",
               "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "b960a2e20cce9d0e",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "6c6e556309768738",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
               "icon": "SpacedRepIcon",
               "title": "Notes Review Queue"
             }
@@ -600,11 +592,12 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "11599148e9ebb5d5",
+  "active": "e0e07b6673b467b2",
   "lastOpenFiles": [
-    "swe-bench-chart-2025-12-22.png",
     "AI/SGLang/Overview.md",
+    "AI/SGLang/Model Implementations.md",
     "AI/Local LLM Hosting.md",
+    "swe-bench-chart-2025-12-22.png",
     "README.md",
     "images/Pasted image 20250528093356.png",
     "AI/SGLang",
