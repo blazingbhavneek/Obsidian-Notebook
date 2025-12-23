@@ -830,3 +830,294 @@ If you want next steps, I can:
 
 
 
+
+## Decoder Layer
+
+### Code
+
+```python
+
+class LlamaDecoderLayer(nn.Module):
+    def __init__(
+        self,
+        config: LlamaConfig,
+        layer_id: int = 0,
+        quant_config: Optional[QuantizationConfig] = None,
+        prefix: str = "",
+    ) -> None:
+        super().__init__()
+        self.hidden_size = config.hidden_size
+        rope_theta = getattr(config, "rope_theta", 10000)
+        rope_scaling = getattr(config, "rope_scaling", None)
+        if rope_scaling is not None and getattr(
+            config, "original_max_position_embeddings", None
+        ):
+            rope_scaling["original_max_position_embeddings"] = (
+                config.original_max_position_embeddings
+            )
+        rope_is_neox_style = getattr(config, "rope_is_neox_style", True)
+        max_position_embeddings = getattr(config, "max_position_embeddings", 8192)
+        # Support llamafy/Qwen-Qwen2.5-7B-Instruct-llamafied with attention_bias
+        # Support internlm/internlm-7b with bias
+        attention_bias = getattr(config, "attention_bias", False) or getattr(
+            config, "bias", False
+        )
+        
+        self.layer_id = layer_id
+        
+        if self.layer_id == 0:
+            sprint(config)
+            sprint(layer_id)
+            sprint(quant_config)
+            sprint(prefix)
+            sprint(rope_theta)
+            sprint(rope_scaling)
+            sprint(rope_is_neox_style)
+            sprint(max_position_embeddings)
+            sprint(attention_bias)
+            sprint(self.hidden_size)
+
+        self.self_attn = LlamaAttention(
+            config=config,
+            hidden_size=self.hidden_size,
+            num_heads=config.num_attention_heads,
+            num_kv_heads=config.num_key_value_heads,
+            layer_id=layer_id,
+            rope_theta=rope_theta,
+            rope_scaling=rope_scaling,
+            rope_is_neox_style=rope_is_neox_style,
+            max_position_embeddings=max_position_embeddings,
+            quant_config=quant_config,
+            prefix=add_prefix("self_attn", prefix),
+            bias=attention_bias,
+        )
+        self.mlp = LlamaMLP(
+            hidden_size=self.hidden_size,
+            intermediate_size=config.intermediate_size,
+            hidden_act=config.hidden_act,
+            quant_config=quant_config,
+            prefix=add_prefix("mlp", prefix),
+            layer_id=layer_id
+        )
+        self.input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.post_attention_layernorm = RMSNorm(
+            config.hidden_size, eps=config.rms_norm_eps
+        )
+
+    def forward(
+        self,
+        positions: torch.Tensor,
+        hidden_states: torch.Tensor,
+        forward_batch: ForwardBatch,
+        residual: Optional[torch.Tensor],
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        # Self Attention
+        if residual is None:
+            residual = hidden_states
+            hidden_states = self.input_layernorm(hidden_states)
+        else:
+            hidden_states, residual = self.input_layernorm(hidden_states, residual)
+            
+        if self.layer_id == 0:
+            pprint("hidden_states_after_input_layernorm")
+            sprint(hidden_states)
+            pprint("residual_after_input_layernorm")
+            sprint(residual)
+
+        hidden_states = self.self_attn(
+            positions=positions,
+            hidden_states=hidden_states,
+            forward_batch=forward_batch,
+        )
+        
+        if self.layer_id == 0:
+            pprint("hidden_states_after_attention")
+            sprint(hidden_states)
+
+        # Fully Connected
+        hidden_states, residual = self.post_attention_layernorm(hidden_states, residual)
+        
+        if self.layer_id == 0:
+            pprint("hidden_states_after_post_attention_layernorm")
+            sprint(hidden_states)
+            pprint("residual_after_post_attention_layernorm")
+            sprint(residual)
+            
+        hidden_states = self.mlp(hidden_states)
+        
+        if self.layer_id == 0:
+            pprint("hidden_states_after_mlp")
+            sprint(hidden_states)
+            
+        return hidden_states, residual
+
+```
+
+
+### Print
+
+```bash
+'hidden_states_after_input_layernorm'
+'\n=== hidden_states ==='
+{'device': device(type='cuda', index=0),
+ 'dtype': torch.bfloat16,
+ 'requires_grad': False,
+ 'shape': (512, 2048),
+ 'type': 'torch.Tensor'}
+'residual_after_input_layernorm'
+'\n=== residual ==='
+{'device': device(type='cuda', index=0),
+ 'dtype': torch.bfloat16,
+ 'requires_grad': False,
+ 'shape': (512, 2048),
+ 'type': 'torch.Tensor'}
+'hidden_states_after_attention'
+'\n=== hidden_states ==='
+{'device': device(type='cuda', index=0),
+ 'dtype': torch.bfloat16,
+ 'requires_grad': False,
+ 'shape': (512, 2048),
+ 'type': 'torch.Tensor'}
+'hidden_states_after_post_attention_layernorm'
+'\n=== hidden_states ==='
+{'device': device(type='cuda', index=0),
+ 'dtype': torch.bfloat16,
+ 'requires_grad': False,
+ 'shape': (512, 2048),
+ 'type': 'torch.Tensor'}
+'residual_after_post_attention_layernorm'
+'\n=== residual ==='
+{'device': device(type='cuda', index=0),
+ 'dtype': torch.bfloat16,
+ 'requires_grad': False,
+ 'shape': (512, 2048),
+ 'type': 'torch.Tensor'}
+'hidden_states_after_mlp'
+'\n=== hidden_states ==='
+{'device': device(type='cuda', index=0),
+ 'dtype': torch.bfloat16,
+ 'requires_grad': False,
+ 'shape': (512, 2048),
+ 'type': 'torch.Tensor'}
+```
+
+### Explanation
+
+#### High-Level Structure
+
+Each decoder layer contains:
+
+* **Self-attention (`self_attn`)**: Adds context across tokens
+* **MLP (`self.mlp`)**: Per-token non-linear transformation
+* **Input RMSNorm (`input_layernorm`)**: Applied before attention
+* **Post-attention RMSNorm (`post_attention_layernorm`)**: Applied before MLP
+
+
+#### Forward Pass: Data Flow
+
+##### Step 1: Pre-Norm and Residual Setup
+
+```python
+residual = hidden_states
+hidden_states = self.input_layernorm(hidden_states)
+```
+
+* **Purpose**: Normalize input before attention
+* **Residual**: Save original input for skip connection
+* **Shape**: `(512, 2048) → (512, 2048)`
+
+---
+
+##### Step 2: Self-Attention
+
+```python
+hidden_states = self.self_attn(...)
+```
+
+* **Purpose**: Inject contextual information across tokens
+* **Input / Output shape**: `(512, 2048)`
+* Content changes, shape stays the same
+
+---
+
+##### Step 3: Add & Norm (After Attention)
+
+```python
+hidden_states, residual = self.post_attention_layernorm(hidden_states, residual)
+```
+
+Internally:
+
+* `residual = residual + attention_output`
+
+* `hidden_states = RMSNorm(residual)`
+
+* **Purpose**: First residual connection + normalization
+
+* **Shape**: `(512, 2048)`
+
+---
+
+##### Step 4: MLP
+
+```python
+hidden_states = self.mlp(hidden_states)
+```
+
+* **Purpose**: Non-linear per-token transformation
+* **Shape**: `(512, 2048)`
+
+---
+
+##### Step 5: Output
+
+```python
+return hidden_states, residual
+```
+
+* Returns:
+
+  * `hidden_states`: MLP output
+  * `residual`: sum of input + attention output
+
+The **final residual addition (`residual + mlp_output`)** is typically handled in the **next layer’s input normalization**, a common optimization in high-performance implementations.
+
+---
+
+#### Shape Summary
+
+| Stage            | Shape         |
+| ---------------- | ------------- |
+| Input            | `(512, 2048)` |
+| After Pre-Norm   | `(512, 2048)` |
+| After Attention  | `(512, 2048)` |
+| After Add & Norm | `(512, 2048)` |
+| After MLP        | `(512, 2048)` |
+
+---
+
+#### Key Concepts
+
+##### Residual Connections
+
+Allow gradients and information to flow through deep networks:
+
+```
+Output = Input + F(Input)
+```
+
+Prevents degradation in very deep models.
+
+##### Pre-Layer Normalization (Pre-LN)
+
+Normalization is applied **before** attention and MLP:
+
+```
+Output = Input + Sublayer(Norm(Input))
+```
+
+This improves:
+
+* Training stability
+* Convergence
+* Scalability to large depths
