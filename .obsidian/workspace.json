@@ -135,8 +135,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 200,
-    "collapsed": true
+    "width": 200
   },
   "right": {
     "id": "df5449a757fb8bbe",
@@ -723,6 +722,16 @@
             "state": {
               "type": "review-queue-list-view",
               "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "fd6d9ad8f53c2e46",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
               "icon": "SpacedRepIcon",
               "title": "Notes Review Queue"
             }
@@ -749,15 +758,15 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "6efa6757b13e1ef6",
+  "active": "a0d882203c103598",
   "lastOpenFiles": [
     "C++/learnCPP/Chapter 0.md",
     "C++/learnCPP/Chapter 1.md",
+    "AI/SGLang/Model Implementations.md",
     "AI/C Benchmarking.md",
     "C++/learnCPP",
     "SGLang PRs.md",
     "AI/SGLang/Overview.md",
-    "AI/SGLang/Model Implementations.md",
     "AI/Local LLM Hosting.md",
     "swe-bench-chart-2025-12-22.png",
     "README.md",
