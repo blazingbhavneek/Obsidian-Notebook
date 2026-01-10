@@ -1260,3 +1260,205 @@ Warning
 Converting an unsigned integral value to a signed integral value will result in implementation-defined behavior prior to C++20 if the value being converted can not be represented in the signed type.
 
 
+std::int8_t and std::uint8_t likely behave like chars instead of integers
+
+As noted in lesson [4.6 -- Fixed-width integers and size_t](https://www.learncpp.com/cpp-tutorial/fixed-width-integers-and-size-t/), most compilers define and treat `std::int8_t` and `std::uint8_t` (and the corresponding fast and least fixed-width types) identically to types `signed char` and `unsigned char` respectively. Now that we’ve covered what chars are, we can demonstrate where this can be problematic:
+
+```cpp
+#include <cstdint>
+#include <iostream>
+
+int main()
+{
+    std::int8_t myInt{65};      // initialize myInt with value 65
+    std::cout << myInt << '\n'; // you're probably expecting this to print 65
+
+    return 0;
+}
+```
+
+Because `std::int8_t` describes itself as an int, you might be tricked into believing that the above program will print the integral value `65`. However, on most systems, this program will print `A` instead (treating `myInt` as a `signed char`). However, this is not guaranteed (on some systems, it may actually print `65`).
+
+If you want to ensure that a `std::int8_t` or `std::uint8_t` object is treated as an integer, you can convert the value to an integer using `static_cast`:
+
+```cpp
+#include <cstdint>
+#include <iostream>
+
+int main()
+{
+    std::int8_t myInt{65};
+    std::cout << static_cast<int>(myInt) << '\n'; // will always print 65
+
+    return 0;
+}
+```
+
+In cases where `std::int8_t` is treated as a char, input from the console can also cause problems:
+
+```cpp
+#include <cstdint>
+#include <iostream>
+
+int main()
+{
+    std::cout << "Enter a number between 0 and 127: ";
+    std::int8_t myInt{};
+    std::cin >> myInt;
+
+    std::cout << "You entered: " << static_cast<int>(myInt) << '\n';
+
+    return 0;
+}
+```
+
+A sample run of this program:
+
+Enter a number between 0 and 127: 35
+You entered: 51
+
+Here’s what’s happening. When `std::int8_t` is treated as a char, the input routines interpret our input as a sequence of characters, not as an integer. So when we enter `35`, we’re actually entering two chars, `'3'` and `'5'`. Because a char object can only hold one character, the `'3'` is extracted (the `'5'` is left in the input stream for possible extraction later). Because the char `'3'` has ASCII code point 51, the value `51` is stored in `myInt`, which we then print later as an int.
+
+In contrast, the other fixed-width types will always print and input as integral values.
+
+
+
+Short version:
+
+`std::int8_t` / `std::uint8_t` are **usually typedefs of `signed char` / `unsigned char`**, not real “small ints”.
+
+**Why this breaks expectations**
+
+* `char` is treated as a **character type**, not a number.
+* `std::cout << myInt` prints it as a character.
+* `65` → ASCII `'A'`, so you see `A`.
+
+**Output**
+
+```cpp
+std::int8_t x{65};
+std::cout << x;   // prints 'A' on most systems
+```
+
+**Fix**
+
+```cpp
+std::cout << static_cast<int>(x); // prints 65
+```
+
+**Input problem**
+
+```cpp
+std::cin >> myInt;
+```
+
+* `cin` reads **one character**, not a number.
+* Typing `35`:
+
+  * `'3'` is read
+  * `'5'` stays in the buffer
+  * `'3'` → ASCII 51 → stored value
+
+So:
+
+```
+35  -> '3' -> 51
+```
+
+**Why other fixed-width ints work**
+
+* `int16_t`, `int32_t`, etc. are real integer types.
+* They use numeric extraction, not character extraction.
+
+**Rule**
+
+* Don’t use `int8_t` / `uint8_t` for numeric I/O.
+* Use `int`, `int16_t`, etc.
+* Cast to `int` when printing small byte-sized values.
+
+
+A `typedef` is **a type alias**.
+
+It gives an existing type a new name.
+No new type is created.
+
+Example:
+
+```cpp
+typedef unsigned char uint8;
+```
+
+Now:
+
+```cpp
+uint8 x;
+```
+
+is **exactly the same type** as:
+
+```cpp
+unsigned char x;
+```
+
+Modern C++ version:
+
+```cpp
+using uint8 = unsigned char;
+```
+
+**Why this matters**
+
+* `std::int8_t` is often:
+
+```cpp
+using int8_t = signed char;
+```
+
+So it behaves like `char`, not like `int`.
+
+**Key point**
+
+* `typedef` ≠ new type
+* It’s just another name for the same type.
+
+
+Because aliases solve real problems.
+
+Main reasons:
+
+**1. Readability**
+
+```cpp
+using Bytes = std::uint8_t;
+```
+
+Clear intent, same type.
+
+**2. Portability**
+
+```cpp
+using int32 = int;
+```
+
+Can change it per platform without touching code.
+
+**3. Abstraction**
+Hide ugly or complex types:
+
+```cpp
+using Callback = std::function<void(int, int)>;
+```
+
+**4. Consistency**
+Standard library uses them (`size_t`, `int32_t`, etc.).
+
+**5. Refactoring**
+Change the underlying type in one place.
+
+**Important**
+
+* `typedef` does not create safety.
+* It only renames.
+* Behavior stays the same.
+
+
