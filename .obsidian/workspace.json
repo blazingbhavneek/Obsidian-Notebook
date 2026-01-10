@@ -55,12 +55,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "C++/learnCPP/Chapter 4.md",
+                "file": "C++/learnCPP/Chapter 2.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Chapter 4"
+              "title": "Chapter 2"
             }
           },
           {
@@ -164,7 +164,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "C++/learnCPP/Chapter 4.md",
+                "file": "C++/learnCPP/Chapter 2.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -174,7 +174,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for Chapter 4"
+              "title": "Backlinks for Chapter 2"
             }
           },
           {
@@ -651,10 +651,10 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "d98521a40319d7c9",
+  "active": "fc8d23c3abc80fdc",
   "lastOpenFiles": [
-    "C++/learnCPP/Chapter 2.md",
     "C++/learnCPP/Chapter 4.md",
+    "C++/learnCPP/Chapter 2.md",
     "SGLang PRs.md",
     "C++/learnCPP/Chapter 0.md",
     "C++/learnCPP",
