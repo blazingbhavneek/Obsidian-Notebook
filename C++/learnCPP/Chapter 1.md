@@ -559,11 +559,333 @@ int add(int x, int y)
 ```
 
 
-Why we need header files in add.cpp too? we already have a definiton there why do we need declaration too?
+Source files should include their paired header[](https://www.learncpp.com/cpp-tutorial/header-files/#corresponding_include)
+
+In C++, it is a best practice for code files to #include their paired header file (if one exists). This allows the compiler to catch certain kinds of errors at compile time instead of link time. 
+Because if you change definiton of a function in the source code, and you forget to change its header, then it will give a compile error instead of linking error, otherwise at link time it will see two funcs with diff definitions
+
+As an aside…
+
+Unfortunately, this doesn’t work if it is a parameter with a different type instead of a return type. This is because C++ supports overloaded functions (functions with the same name but different parameter types), so the compiler will assume a function with a mismatched parameter type is a different overload. Can’t win em all. What are overloaded functions?
+
+We will also see many examples in future lessons where content required by the source file is defined in the paired header. In such cases, including the header is a necessity.
+
+Best practice
+
+Source files should #include their paired header file (if one exists).
+
 
 How including definitions in a header file results in a violation of the one-definition rule
 
 For now, you should avoid putting function or variable definitions in header files. Doing so will generally result in a violation of the one-definition rule (ODR) in cases where the header file is included into more than one source file.
 
+
+
+Best practice
+
+Do not put function and variable definitions in your header files (for now).
+
+Defining either of these in a header file will likely result in a violation of the one-definition rule (ODR) if that header is then #included into more than one source (.cpp) file.
+
+Author’s note
+
+In future lessons, we will encounter additional kinds of definitions that can be safely defined in header files (because they are exempt from the ODR). This includes definitions for inline functions, inline variables, types, and templates. We’ll discuss this further when we introduce each of these.
+
+
+
+Do not #include .cpp files[](https://www.learncpp.com/cpp-tutorial/header-files/#includecpp)
+
+Although the preprocessor will happily do so, you should generally not `#include` .cpp files. These should be added to your project and compiled.
+
+There are number of reasons for this:
+
+- Doing so can cause naming collisions between source files.
+- In a large project it can be hard to avoid one definition rules (ODR) issues.
+- Any change to such a .cpp file will cause both the .cpp file and any other .cpp file that includes it to recompile, which can take a long time. Headers tend to change less often than source files.
+- It is non-conventional to do so.
+
+When we use angled brackets, we’re telling the preprocessor that this is a header file we didn’t write ourselves. The preprocessor will search for the header only in the directories specified by the `include directories`. The `include directories` are configured as part of your project/IDE settings/compiler settings, and typically default to the directories containing the header files that come with your compiler and/or OS. The preprocessor will not search for the header file in your project’s source code directory.
+
+
+Use double quotes to include header files that you’ve written or are expected to be found in the current directory. Use angled brackets to include headers that come with your compiler, OS, or third-party libraries you’ve installed elsewhere on your system.
+
+
+When C++ was first created, all of the headers in the standard library ended in a _.h_ suffix. These headers included:
+
+|Header type|Naming convention|Example|Identifiers placed in namespace|
+|---|---|---|---|
+|C++ specific|<xxx.h>|iostream.h|Global namespace|
+|C compatibility|<xxx.h>|stddef.h|Global namespace|
+
+The original versions of _cout_ and _cin_ were declared in _iostream.h_ in the global namespace. Life was consistent, and it was good.
+
+When the language was standardized by the ANSI committee, they decided to move all of the names used in the standard library into the _std_ namespace to help avoid naming conflicts with user-declared identifiers. However, this presented a problem: if they moved all the names into the _std_ namespace, none of the old programs (that included iostream.h) would work anymore!
+
+To work around this issue, C++ introduced new header files that lack the _.h_ extension. These new header files declare all names inside the _std_ namespace. This way, older programs that include `#include <iostream.h>` do not need to be rewritten, and newer programs can `#include <iostream>`.
+
+Modern C++ now contains 4 sets of header files:
+
+|Header type|Naming convention|Example|Identifiers placed in namespace|
+|---|---|---|---|
+|C++ specific (new)|<xxx>|iostream|`std` namespace|
+|C compatibility (new)|<cxxx>|cstddef|`std` namespace (required)  <br>global namespace (optional)|
+|C++ specific (old)|<xxx.h>|iostream.h|Global namespace|
+|C compatibility (old)|<xxx.h>|stddef.h|Global namespace (required)  <br>`std` namespace (optional)|
+
+Warning
+
+The new C compatibility headers \<cxxx> may optionally declare names in the global namespace, and the old C compatibility headers <xxx.h> may optionally declare names in the `std` namespace. Names in these locations should be avoided, as those names may not be declared in those locations on other implementations.
+
+Best practice
+
+Use the standard library header files without the .h extension. User-defined headers should still use a .h extension.
+
+
+
+Including header files from other directories
+
+Another common question involves how to include header files from other directories.
+
+One (bad) way to do this is to include a relative path to the header file you want to include as part of the #include line. For example:
+
+```cpp
+#include "headers/myHeader.h"
+#include "../moreHeaders/myOtherHeader.h"
+```
+
+While this will compile (assuming the files exist in those relative directories), the downside of this approach is that it requires you to reflect your directory structure in your code. If you ever update your directory structure, your code won’t work anymore.
+
+A better method is to tell your compiler or IDE that you have a bunch of header files in some other location, so that it will look there when it can’t find them in the current directory. This can generally be done by setting an _include path_ or _search directory_ in your IDE project settings.
+
+
+For gcc users
+
+Using g++, you can use the -I option to specify an alternate include directory:  
+`g++ -o main -I./source/includes main.cpp`
+
+There is no space after the `-I`. For a full path (rather than a relative path), remove the `.` after `-I`.
+
+For VS Code users
+
+In your _tasks.json_ configuration file, add a new line in the _“Args”_ section:  
+`"-I./source/includes",`
+
+There is no space after the `-I`. For a full path (rather than a relative path), remove the `.` after `-I`.
+
+The nice thing about this approach is that if you ever change your directory structure, you only have to change a single compiler or IDE setting instead of every code file.
+
+
+It’s common that the content of a header file will make use of something that is declared (or defined) in another header file. When this happens, the header file should #include the other header file containing the declaration (or definition) that it needs.
+
+Foo.h:
+
+```cpp
+#include \<string_view> // required to use std::string_view
+
+std::string_view getApplicationName(); // std::string_view used here
+```
+
+Transitive includes
+
+When your source (.cpp) file #includes a header file, you’ll also get any other header files that are #included by that header (and any header files those include, and so on). These additional header files are sometimes called **transitive includes**, as they’re included implicitly rather than explicitly.
+
+
+Best practice
+
+Each file should explicitly #include all of the header files it needs to compile. Do not rely on headers included transitively from other headers.
+
+The order of inclusion for header files
+
+If your header files are written properly and #include everything they need, the order of inclusion shouldn’t matter.
+
+Now consider the following scenario: let’s say header A needs declarations from header B, but forgets to include it. In our code file, if we include header B before header A, our code will still compile! This is because the compiler will compile all the declarations from B before it compiles the code from A that depends on those declarations.
+
+
+Best practice
+
+To maximize the chance that missing includes will be flagged by compiler, order your #includes as follows (skipping any that are not relevant):
+
+- The paired header file for this code file (e.g. `add.cpp` should `#include "add.h"`)
+- Other headers from the same project (e.g. `#include "mymath.h"`)
+- 3rd party library headers (e.g. `#include \<boost/tuple/tuple.hpp>`)
+- Standard library headers (e.g. `#include \<iostream>`)
+
+The headers for each grouping should be sorted alphabetically (unless the documentation for a 3rd party library instructs you to do otherwise).
+
+That way, if one of your user-defined headers is missing an #include for a 3rd party library or standard library header, it’s more likely to cause a compile error so you can fix it.
+
+
+Duplicate definitions and a compile error. Each file, individually, is fine. However, because _main.cpp_ ends up #including the content of _square.h_ twice, we’ve run into problems. If _wave.h_ needs _getSquareSides()_, and _main.cpp_ needs both _wave.h_ and _square.h_, how would you resolve this issue?
+
+Header guards
+
+The good news is that we can avoid the above problem via a mechanism called a **header guard** (also called an **include guard**). Header guards are conditional compilation directives that take the following form:
+
+
+```cpp
+#ifndef SOME_UNIQUE_NAME_HERE
+#define SOME_UNIQUE_NAME_HERE
+
+// your declarations (and certain types of definitions) here
+
+#endif
+```
+
+When this header is #included, the preprocessor will check whether _SOME_UNIQUE_NAME_HERE_ has been previously defined in this translation unit. If this is the first time we’re including the header, _SOME_UNIQUE_NAME_HERE_ will not have been defined. Consequently, it #defines _SOME_UNIQUE_NAME_HERE_ and includes the contents of the file. If the header is included again into the same file, _SOME_UNIQUE_NAME_HERE_ will already have been defined from the first time the contents of the header were included, and the contents of the header will be ignored (thanks to the #ifndef).
+
+
+All of your header files should have header guards on them. _SOME_UNIQUE_NAME_HERE_ can be any name you want, but by convention is set to the full filename of the header file, typed in all caps, using underscores for spaces or punctuation. For example, _square.h_ would have the header guard:
+
+square.h:
+
+```cpp
+#ifndef SQUARE_H
+#define SQUARE_H
+
+int getSquareSides()
+{
+    return 4;
+}
+
+#endif
+```
+
+
+Even the standard library headers use header guards. If you were to take a look at the iostream header file from Visual Studio, you would see:
+
+```cpp
+#ifndef _IOSTREAM_
+#define _IOSTREAM_
+
+// content here
+
+#endif
+```
+
+For advanced readers
+
+In large programs, it’s possible to have two separate header files (included from different directories) that end up having the same filename (e.g. directoryA\config.h and directoryB\config.h). If only the filename is used for the include guard (e.g. CONFIG_H), these two files may end up using the same guard name. If that happens, any file that includes (directly or indirectly) both config.h files will not receive the contents of the include file to be included second. This will probably cause a compilation error.
+
+Because of this possibility for guard name conflicts, many developers recommend using a more complex/unique name in your header guards. Some good suggestions are a naming convention of PROJECT_PATH_FILE_H, FILE_LARGE-RANDOM-NUMBER_H, or FILE_CREATION-DATE_H.
+
+Updating our previous example with header guards
+
+Let’s return to the _square.h_ example, using the _square.h_ with header guards. For good form, we’ll also add header guards to _wave.h_.
+
+square.h
+
+```cpp
+#ifndef SQUARE_H
+#define SQUARE_H
+
+int getSquareSides()
+{
+    return 4;
+}
+
+#endif
+```
+
+wave.h:
+
+```cpp
+#ifndef WAVE_H
+#define WAVE_H
+
+#include "square.h"
+
+#endif
+```
+
+main.cpp:
+
+```cpp
+#include "square.h"
+#include "wave.h"
+
+int main()
+{
+    return 0;
+}
+```
+
+After the preprocessor resolves all of the #include directives, this program looks like this:
+
+main.cpp:
+
+```cpp
+// Square.h included from main.cpp
+#ifndef SQUARE_H // square.h included from main.cpp
+#define SQUARE_H // SQUARE_H gets defined here
+
+// and all this content gets included
+int getSquareSides()
+{
+    return 4;
+}
+
+#endif // SQUARE_H
+
+#ifndef WAVE_H // wave.h included from main.cpp
+#define WAVE_H
+#ifndef SQUARE_H // square.h included from wave.h, SQUARE_H is already defined from above
+#define SQUARE_H // so none of this content gets included
+
+int getSquareSides()
+{
+    return 4;
+}
+
+#endif // SQUARE_H
+#endif // WAVE_H
+
+int main()
+{
+    return 0;
+}
+```
+
+
+Header guards do not prevent a header from being included once into different code files
+
+Note that the goal of header guards is to prevent a code file from receiving more than one copy of a guarded header. By design, header guards do _not_ prevent a given header file from being included (once) into separate code files. This can also cause unexpected problems. Consider:
+
+
+Can’t we just avoid definitions in header files?
+
+We’ve generally told you not to include function definitions in your headers. So you may be wondering why you should include header guards if they protect you from something you shouldn’t do.
+
+There are quite a few cases we’ll show you in the future where it’s necessary to put non-function definitions in a header file. For example, C++ will let you create your own types. These custom types are typically defined in header files, so the type definitions can be propagated out to the code files that need to use them. Without a header guard, a code file could end up with multiple (identical) copies of a given type definition, which the compiler will flag as an error.
+
+So even though it’s not strictly necessary to have header guards at this point in the tutorial series, we’re establishing good habits now, so you don’t have to unlearn bad habits later.
+
+
+#pragma once
+
+Modern compilers support a simpler, alternate form of header guards using the `#pragma` preprocessor directive:
+
+```cpp
+#pragma once
+
+// your code here
+```
+
+`#pragma once` serves the same purpose as header guards: to avoid a header file from being included multiple times. With traditional header guards, the developer is responsible for guarding the header (by using preprocessor directives `#ifndef`, `#define`, and `#endif`). With `#pragma once`, we’re requesting that the compiler guard the header. How exactly it does this is an implementation-specific detail.
+
+For advanced readers
+
+There is one known case where `#pragma once` will typically fail. If a header file is copied so that it exists in multiple places on the file system, if somehow both copies of the header get included, header guards will successfully de-dupe the identical headers, but `#pragma once` won’t (because the compiler won’t realize they are actually identical content).
+
+Because pragma once probably generates a unique id each time, and for diff files it will create diff unique values hence in the eyes of the compiler it would be ok
+
+
+For most projects, `#pragma once` works fine, and many developers now prefer it because it is easier and less error-prone. Many IDEs will also auto-include `#pragma once` at the top of a new header file generated through the IDE.
+
+Warning
+
+The `#pragma` directive was designed for compiler implementers to use for whatever purposes they desire. As such, which pragmas are supported and what meaning those pragmas have is completely implementation-specific. With the exception of `#pragma once`, do not expect a pragma that works on one compiler to be supported by another.
+
+
+Because `#pragma once` is not defined by the C++ standard, it is possible that some compilers may not implement it. For this reason, some development houses (such as Google) recommend using traditional header guards. In this tutorial series, we will favor header guards, as they are the most conventional way to guard headers. However, support for `#pragma once` is fairly ubiquitous at this point, and if you wish to use `#pragma once` instead, that is generally accepted in modern C++.
 
 
