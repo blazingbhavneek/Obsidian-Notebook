@@ -51,9 +51,10 @@ python3 chat_completions.py bench --name hosted_vllm/qwen --lang cpp --temperatu
 ## Ag-LiveCodeBench-X
 
 ```bash
-python mod.py     completions     --model-name openai/nemotron-nano     --completions-path completions.jsonl     --temperature 0.4     --num-concurrent 5     --max-tokens 20000     --language "C"
 
-python mod.py executions     --container-name agnostics:c     --timeout-seconds 15     --generations-path completions.jsonl     --executions-path executions.jsonl     --num-concurrent 50
+python  main.py     completions     --model-name qwen     --completions-path completions.jsonl     --temperature 0.4     --num-concurrent 5     --max-tokens 20000     --language "C" --completions-path "io/output/output4/comp1.jsonl" --num-problems 20 --api-key sk-dummy
+
+python main.py executions     --container-name agnostics:c     --timeout-seconds 15     --num-concurrent 5 --generations-path io/output/output4/comp1.jsonl --executions-path io/output/output4/exec1.jsonl
 
 python mod.py pass1 executions.jsonl
 
@@ -78,6 +79,10 @@ python mod.py iterative \
     --max-refinement-iterations 3 \
     --num-completions 1 \
     --max-agent-iterations 0
+
+
+python main.py iterative     --model-name qwen     --language "C"     --container-name agnostics:c     --timeout-seconds 15     --output-dir ./io/output/output5/     --temperature 0.6     --num-concurrent 5     --max-tokens 20000     --num-problems 499     --max-refinement-iterations 3     --num-completions 1
+
 ```
 
 # SWE-Smith
