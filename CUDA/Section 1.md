@@ -1,0 +1,42 @@
+- CPU vs GPU architecture
+	- DRAM
+	- ALU in CPUs, limited
+	- ALUs in GPU, A lot of them, called cores
+	-  Control and Caches
+	- Small cache per core in gpu, large cache for ALUs in cpu, good for sequential
+	- CPU ALU are for general sequential, but for GPU ALU the Cycles are less (1.2GHz as compared to 3-4GHz in cpu), but because of sheer number of alus parallel ops are hyper fast
+- Sequential vs Non sequential instructions
+- PCI Interfaces of CPU
+	- PCI connection of GPU to CPU
+	- Both have their own seperate DRAM (GRAM? which is that?)
+- General GPU Architecture
+	- SM: Streaming multiprocessor
+		- Cores: FP cores and INT cores
+		- Shared cache, L1 cache
+		- Registers,  schedulers and dispatcher
+		- Loaders and storers?
+	- Global memory
+	- Scheduler and dispatchers
+	- L2 cache memory
+- Architecture whitepapers
+- Nvidia Categories and Generations
+	- Architecture (for implementation details)
+		- underlying struct and design of GPU 
+		- Determines efficiency performance and  capabilities
+		- Named after scientists
+		- Turing one introduces ray tracing and tensor cores? Fact check this
+	- Categories/Generations (for usage)
+		- Standard: RTX XXXX
+			- Generations
+				- Tegra
+				- GeForce
+				- Quadro
+		- HPCs: A100, H100
+			- Gens
+				- Tesla
+		- Difference between diff generations
+			- Tegra: For mobile devices
+			- Geforce: For gamers, video editors, general consumers (RTX 3090)
+			- Quadro: Professionals, engineers etc (RTX A4000, RTX AA6000)
+			- Tesla: For HPCs (A100, H100)
+	- techpowerup website to know specs of any gpu
