@@ -1,104 +1,180 @@
 
-Serve commands start at:
+## Table of Contents
 
-python/sglang/cli/serve.py
+1. [System Architecture Overview](#system-architecture-overview)
+2. [Launch Flow Deep Dive](#launch-flow-deep-dive)
+3. [Process Architecture & IPC](#process-architecture--ipc)
+4. [Model Loading Pipeline](#model-loading-pipeline)
+5. [Parallelism Strategies](#parallelism-strategies)
+6. [Memory Management](#memory-management)
+7. [Request Processing Flow](#request-processing-flow)
 
-the function is 
+---
+
+## System Architecture Overview
+
+SGLang implements a **multi-process, pipeline-based serving architecture** that separates I/O, scheduling, inference, and text processing into independent processes communicating via ZeroMQ.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                          Main Process                                │
+│                                                                       │
+│  ┌──────────────┐    ┌─────────────────────┐    ┌────────────┐     │
+│  │   FastAPI    │───►│  TokenizerManager   │───►│   Engine   │     │
+│  │ HTTP Server  │◄───│  (text→token IDs)   │◄───│ Controller │     │
+│  │  (uvicorn)   │    │  (async I/O loop)   │    │            │     │
+│  └──────────────┘    └─────────────────────┘    └────────────┘     │
+│         │                      │                        │            │
+└─────────┼──────────────────────┼────────────────────────┼───────────┘
+          │                      │ ZMQ PUSH/PULL          │
+          │                      ▼                        │
+          │         ┌─────────────────────────┐           │
+          │         │   ZMQ Message Queue     │           │
+          │         │  (IPC Unix Sockets)     │           │
+          │         └─────────────────────────┘           │
+          │                      │                        │
+          │                      ▼                        │
+┌─────────┼──────────────────────────────────────────────┼───────────┐
+│         │         Scheduler Process (per TP/PP/DP rank) │           │
+│         │                                                │           │
+│  ┌──────▼────────┐  ┌──────────────┐  ┌───────────────▼────────┐  │
+│  │   Scheduler   │─►│  TpWorker    │─►│   ModelRunner          │  │
+│  │               │  │  (wrapper)   │  │   • Model forward      │  │
+│  │ • Batching    │  │              │  │   • KV cache mgmt      │  │
+│  │ • KV alloc    │  │              │  │   • Attn backend       │  │
+│  │ • Scheduling  │  │              │  │   • Memory profiling   │  │
+│  │ • Event loops │  │              │  │                        │  │
+│  └───────────────┘  └──────────────┘  └────────────────────────┘  │
+│         │                                        │                  │
+│         │                                        ▼                  │
+│         │                          ┌──────────────────────────┐    │
+│         │                          │  PyTorch Model (on GPU)  │    │
+│         │                          │  • Transformer layers    │    │
+│         │                          │  • Embeddings            │    │
+│         │                          │  • KV Cache Tensors      │    │
+│         │                          │  • Attention Kernels     │    │
+│         │                          └──────────────────────────┘    │
+│         │                                                           │
+└─────────┼───────────────────────────────────────────────────────────┘
+          │ ZMQ PUSH/PULL (output tokens)
+          ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Detokenizer Process                               │
+│                                                                       │
+│  ┌────────────────────────────────────────────────────────┐         │
+│  │  DetokenizerManager                                    │         │
+│  │  • Receives token IDs from Scheduler                   │         │
+│  │  • Converts token IDs → UTF-8 strings                  │         │
+│  │  • Applies chat templates (if needed)                  │         │
+│  │  • Handles streaming (incremental detokenization)      │         │
+│  │  • Sends results back to TokenizerManager              │         │
+│  └────────────────────────────────────────────────────────┘         │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Why This Architecture?
+
+**Design Rationale:**
+
+1. **Separation of Concerns**:
+    
+    - **I/O Layer (FastAPI)**: Handles HTTP, validates requests, manages connections
+    - **Tokenization Layer**: CPU-bound text processing doesn't block GPU
+    - **Scheduling Layer**: Complex batching logic separated from model execution
+    - **Inference Layer**: Pure GPU compute with minimal Python overhead
+    - **Detokenization Layer**: CPU-bound text conversion runs in parallel with next batch
+2. **Concurrency Model**:
+    
+    - Main process uses Python's async/await for I/O multiplexing
+    - Each process has dedicated CPU cores (via affinity settings)
+    - GPU processes use CUDA streams for kernel overlap
+    - ZMQ provides lock-free, zero-copy message passing
+3. **Scalability**:
+    
+    - Horizontal: Multiple scheduler processes for DP/TP/PP
+    - Vertical: Each process can be pinned to NUMA nodes for memory locality
+    - Network: Supports multi-node via NCCL for distributed inference
+
+---
+
+## Launch Flow Deep Dive
+
+### Entry Point: CLI Command
+
+```bash
+python -m sglang.cli.serve \
+    --model-path meta-llama/Llama-3-8B \
+    --tp 4 \
+    --port 30000
+```
+
+### Code Flow Walkthrough
+
+#### 1. `python/sglang/cli/serve.py::serve()`
 
 ```python
-
 def serve(args, extra_argv):
-
-# Detects if user is asking for help and prints cli args
-# Tries to detect if its a multimodal/diffusion model, if yes routes to its runtime
-# Otherwise starts normal server
-
-        else:
-            # Logic for Standard Language Models
-            from sglang.launch_server import run_server
-            from sglang.srt.server_args import prepare_server_args
-
-            # Add a dummy argument for the program name, expected by prepare_server_args
-            # as it typically processes sys.argv
-            server_args = prepare_server_args(extra_argv)
-
-            run_server(server_args)
+    # Step 1: Help handling
+    # If user asks for --help, print all server args and exit
+    
+    # Step 2: Model type detection
+    # Checks model config to determine if it's:
+    # - Multimodal (e.g., LLaVA, Qwen-VL)
+    # - Diffusion (e.g., Stable Diffusion)
+    # - Standard language model
+    
+    # Step 3: Route to appropriate runtime
+    if is_multimodal:
+        # Routes to vision-specific server
+        from sglang.srt.entrypoints.vision_server import run_server
+    elif is_diffusion:
+        # Routes to diffusion-specific server
+        from sglang.srt.entrypoints.diffusion_server import run_server
+    else:
+        # Standard LLM path (most common)
+        from sglang.launch_server import run_server
+        from sglang.srt.server_args import prepare_server_args
+        
+        # Prepares ServerArgs object from CLI arguments
+        server_args = prepare_server_args(extra_argv)
+        run_server(server_args)
     
     finally:
-	    kill_process_tree(os.getpid(), include_parent=False)
-
+        # Cleanup: kill all child processes when parent exits
+        kill_process_tree(os.getpid(), include_parent=False)
 ```
 
-python/sglang/launch_server.py -> python/sglang/srt/entrypoints/http_server.py
+**Key Points:**
 
-Starts http server
+- `prepare_server_args()` parses ~100+ CLI flags and validates them
+- Model type detection happens by reading config.json from the model directory
+- The `finally` block ensures clean shutdown even on crashes
 
-Later: For encoder models, this is that launch server (python/sglang/srt/disaggregation/encode_server.py) 
+---
+
+#### 2. `python/sglang/launch_server.py::run_server()`
+
+This is a thin wrapper that:
+
 ```python
-
-
-app = FastAPI()
-encoder: Optional[MMEncoder] = None
-send_sockets: List[zmq.Socket] = []
-
-
-def launch_server(server_args: ServerArgs):
-    global encoder                          # use/update the module-level 'encoder' variable
-    ctx = mp.get_context("spawn")           # get a multiprocessing context that spawns new processes
-    zmq_ctx = zmq.Context(10)               # create a ZeroMQ context with 10 I/O threads
-    ipc_path_prefix = random_uuid()         # generate a unique prefix for IPC socket paths
-    port_args = PortArgs.init_new(server_args)  # allocate/init network ports (e.g., NCCL port) based on server args
-    if server_args.dist_init_addr:
-        dist_init_method = f"tcp://{server_args.dist_init_addr}"  # use provided distributed init address
-    else:
-        dist_init_method = f"tcp://127.0.0.1:{port_args.nccl_port}"  # fallback to localhost + allocated NCCL port
-    for rank in range(1, server_args.tp_size):   # spawn one worker process per tensor-parallel rank (starting at 1)
-        schedule_path = f"ipc:///tmp/{ipc_path_prefix}_schedule_{rank}"  # per-rank IPC path for scheduling messages
-        send_sockets.append(
-            get_zmq_socket(zmq_ctx, zmq.PUSH, schedule_path, bind=False)
-        )  # create and store a PUSH ZeroMQ socket for sending schedules (not binding here)
-        ctx.Process(
-            target=launch_encoder,
-            args=(server_args, schedule_path, dist_init_method, rank),
-            daemon=True,
-        ).start()  # start the child process that runs launch_encoder for this rank (daemonized)
-    encoder = MMEncoder(server_args, dist_init_method=dist_init_method)  # instantiate the main encoder in master process
-    uvicorn.run(app, host=server_args.host, port=server_args.port)      # run the ASGI app (uvicorn) to serve requests
-
-
+def run_server(server_args: ServerArgs):
+    # Routes to the main HTTP server entrypoint
+    from sglang.srt.entrypoints.http_server import launch_server
+    launch_server(server_args)
 ```
 
-python/sglang/srt/entrypoints/http_server.py
+**Why the indirection?**
+
+- Allows different entry points (HTTP server, offline engine, OpenAI server) to share launch logic
+- Makes testing easier (can inject different launch functions)
+
+---
+
+#### 3. `python/sglang/srt/entrypoints/http_server.py::launch_server()`
+
+This is the **main orchestrator**. Let's break down what it does:
 
 ```python
-
-async def lifespan(fast_api_app: FastAPI):
-	# ...
-    fast_api_app.state.openai_serving_chat = OpenAIServingChat(
-        _global_state.tokenizer_manager, _global_state.template_manager
-    )
-    # ...
-    
-# Fast API
-app = FastAPI(
-    lifespan=lifespan,
-    openapi_url=None if get_bool_env_var("DISABLE_OPENAPI_DOC") else "/openapi.json",
-)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Include routers
-from sglang.srt.entrypoints.v1_loads import router as v1_loads_router
-
-app.include_router(v1_loads_router)
-
-
-
 def launch_server(
     server_args: ServerArgs,
     init_tokenizer_manager_func: Callable = init_tokenizer_manager,
@@ -109,27 +185,131 @@ def launch_server(
 ):
     """
     Launch SRT (SGLang Runtime) Server.
-
-    The SRT server consists of an HTTP server and an SRT engine.
-
-    - HTTP server: A FastAPI server that routes requests to the engine.
-    - The engine consists of three components:
-        1. TokenizerManager: Tokenizes the requests and sends them to the scheduler.
-        2. Scheduler (subprocess): Receives requests from the Tokenizer Manager, schedules batches, forwards them, and sends the output tokens to the Detokenizer Manager.
-        3. DetokenizerManager (subprocess): Detokenizes the output tokens and sends the result back to the Tokenizer Manager.
-
-    Note:
-    1. The HTTP server, Engine, and TokenizerManager all run in the main process.
-    2. Inter-process communication is done through IPC (each process uses a different port) via the ZMQ library.
-    """
     
-        # Launch subprocesses
-    tokenizer_manager, template_manager, scheduler_infos, port_args = (
-        _launch_subprocesses(
-        
+    Architecture:
+    - HTTP Server (FastAPI) routes requests to engine
+    - Engine has 3 components:
+      1. TokenizerManager: text → token IDs → scheduler
+      2. Scheduler (subprocess): batching, scheduling, forward passes
+      3. DetokenizerManager (subprocess): token IDs → text → TokenizerManager
+    
+    All run in main process except Scheduler and Detokenizer.
+    IPC via ZMQ sockets.
+    """
 ```
 
-python/sglang/srt/entrypoints/engine.py
+**Step-by-step execution:**
+
+##### Step 3.1: Launch Subprocesses
+
+```python
+tokenizer_manager, template_manager, scheduler_infos, port_args = (
+    _launch_subprocesses(
+        server_args,
+        init_tokenizer_manager_func,
+        run_scheduler_process_func,
+        run_detokenizer_process_func,
+    )
+)
+```
+
+This calls `engine.py::_launch_subprocesses()` which:
+
+1. Spawns scheduler process(es) - one per TP/PP/DP rank
+2. Spawns detokenizer process
+3. Initializes tokenizer manager in main process
+4. Waits for all processes to be ready (via pipe communication)
+
+##### Step 3.2: Store in Global State
+
+```python
+_global_state = GlobalState()
+_global_state.tokenizer_manager = tokenizer_manager
+_global_state.template_manager = template_manager
+_global_state.scheduler_infos = scheduler_infos
+```
+
+**Why global state?**
+
+- FastAPI routes are stateless functions
+- Need access to tokenizer/scheduler from any route handler
+- Alternative would be dependency injection (FastAPI supports this too)
+
+##### Step 3.3: Setup FastAPI App
+
+```python
+async def lifespan(fast_api_app: FastAPI):
+    # Startup: Initialize OpenAI-compatible serving layer
+    fast_api_app.state.openai_serving_chat = OpenAIServingChat(
+        _global_state.tokenizer_manager, 
+        _global_state.template_manager
+    )
+    
+    yield  # Server runs here
+    
+    # Shutdown: cleanup logic (if needed)
+
+app = FastAPI(
+    lifespan=lifespan,
+    openapi_url=None if DISABLE_OPENAPI_DOC else "/openapi.json",
+)
+
+# Allow cross-origin requests (for web UIs)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+
+##### Step 3.4: Include API Routes
+
+```python
+from sglang.srt.entrypoints.v1_loads import router as v1_loads_router
+app.include_router(v1_loads_router)
+```
+
+This adds routes like:
+
+- `POST /v1/chat/completions` (OpenAI compatible)
+- `POST /v1/completions`
+- `POST /generate`
+- `GET /health`
+- `GET /v1/models`
+
+##### Step 3.5: Execute Warmup
+
+```python
+execute_warmup_func(server_args, _global_state)
+```
+
+Warmup does:
+
+- **CUDA Graph Capture**: Pre-records GPU kernels for common batch sizes
+- **Memory Profiling**: Determines max batch size based on available VRAM
+- **Cache Initialization**: Pre-allocates KV cache memory pools
+
+**Why warmup is critical:**
+
+- CUDA graphs reduce kernel launch overhead by ~10-30%
+- Memory profiling prevents OOM crashes during serving
+- First requests would be slow without pre-warming
+
+##### Step 3.6: Start HTTP Server
+
+```python
+uvicorn.run(app, host=server_args.host, port=server_args.port)
+```
+
+This blocks until server is shut down (Ctrl+C or SIGTERM).
+
+---
+
+## Process Architecture & IPC
+
+### Process Creation: `engine.py::_launch_subprocesses()`
 
 ```python
 def _launch_subprocesses(
@@ -139,145 +319,188 @@ def _launch_subprocesses(
     run_detokenizer_process_func: Callable,
     port_args: Optional[PortArgs] = None,
 ) -> Tuple[TokenizerManager, TemplateManager, Tuple[Dict], PortArgs]:
-    """
-    Launch the TokenizerManager in the main process, the Scheduler in a subprocess, and the DetokenizerManager in another subprocess.
-    """
-    # Launch scheduler processes
-    scheduler_procs, scheduler_pipe_readers = _launch_scheduler_processes(
-        server_args=server_args,
-        port_args=port_args,
-        run_scheduler_process_func=run_scheduler_process_func,
-    )
-    # ....
-    # ....
-    # Launch detokenizer process
-    detoken_proc = mp.Process(
-        target=run_detokenizer_process_func,
-        args=(
-            server_args,
-            port_args,
-        ),
-    )
-    detoken_proc.start()
-    
-    # Init tokenizer manager first, as the bootstrap server is initialized here
-    if server_args.tokenizer_worker_num == 1:
-        tokenizer_manager, template_manager = init_tokenizer_manager_func(
-            server_args, port_args
-        )
-    else:
-        # Launch multi-tokenizer router
-        tokenizer_manager = MultiTokenizerRouter(server_args, port_args)
-        template_manager = None
-        
-    # Wait for the model to finish loading
-    scheduler_infos = _wait_for_scheduler_ready(scheduler_pipe_readers, scheduler_procs)
-
-    # Get back some info from scheduler to tokenizer_manager
-    tokenizer_manager.max_req_input_len = scheduler_infos[0]["max_req_input_len"]
-
-    return tokenizer_manager, template_manager, scheduler_infos, port_args
-    
 ```
 
-Pydantic models for Server IO? Are at: python/sglang/srt/managers/io_struct.py
+#### Port Allocation
 
-This files seems like engine + http server but this is for verl not main serving:
-python/sglang/srt/entrypoints/http_server_engine.py 
-
-Entrypoints will be handled by this: python/sglang/srt/entrypoints/openai/serving_chat.py
-
-For now we will focus on launching server only, for now we seems to have covered the http server part, bu we are lacking the model loading etc
-
-python/sglang/srt/entrypoints/engine.py
 ```python
-class Engine(EngineBase):
-    """
-    The entry point to the inference engine.
-
-    - The engine consists of three components:
-        1. TokenizerManager: Tokenizes the requests and sends them to the scheduler.
-        2. Scheduler (subprocess): Receives requests from the Tokenizer Manager, schedules batches, forwards them, and sends the output tokens to the Detokenizer Manager.
-        3. DetokenizerManager (subprocess): Detokenizes the output tokens and sends the result back to the Tokenizer Manager.
-
-    Note:
-    1. The HTTP server, Engine, and TokenizerManager all run in the main process.
-    2. Inter-process communication is done through IPC (each process uses a different port) via the ZMQ library.
-    """
+if port_args is None:
+    port_args = PortArgs.init_new(server_args)
 ```
 
-Here is the offline engine of sglang without the fastapi server it seems, have similar code to fastapi init but is written seperately
+**What `PortArgs` does:**
 
-> Scheduler -> TP Worker -> Model runner (this loads configs, makes attn backend and weight ig )
+- Allocates unique ports for each component:
+    - `tokenizer_port`: TokenizerManager listens here
+    - `scheduler_port`: Scheduler listens here
+    - `detokenizer_port`: Detokenizer listens here
+    - `nccl_port`: NCCL (NVIDIA Collective Communications) for multi-GPU
 
-
-[] AI this what is this doing:
+**Port allocation strategy:**
 
 ```python
+# Example for TP=4, PP=2, DP=1
+base_port = 30000
 
+tokenizer_port = base_port          # 30000
+scheduler_port = base_port + 10     # 30010
+detokenizer_port = base_port + 20   # 30020
+nccl_port = base_port + 30          # 30030
+```
+
+**Why multiple ports?**
+
+- Each process binds to its own ZMQ socket
+- Avoids port conflicts in multi-instance deployments
+- Allows processes to restart independently
+
+---
+
+### Scheduler Process Launch: `_launch_scheduler_processes()`
+
+This is complex because it handles all parallelism configurations.
+
+```python
 def _launch_scheduler_processes(
     server_args: ServerArgs,
     port_args: PortArgs,
     run_scheduler_process_func: Callable,
 ):
     scheduler_procs = []
-
+    scheduler_pipe_readers = []  # For readiness signaling
+    
     if server_args.dp_size == 1:
-        # Launch tensor parallel scheduler processes
-        memory_saver_adapter = TorchMemorySaverAdapter.create(
-            enable=server_args.enable_memory_saver
-        )
-        scheduler_pipe_readers = []
-
+        # Single data-parallel instance: launch TP/PP processes directly
+        
+        # Calculate how many PP ranks run on this node
         pp_size_per_node = max(server_args.pp_size // server_args.nnodes, 1)
         nnodes_per_pp_rank = max(server_args.nnodes // server_args.pp_size, 1)
+        
         pp_rank_range = range(
             pp_size_per_node * (server_args.node_rank // nnodes_per_pp_rank),
             pp_size_per_node * (server_args.node_rank // nnodes_per_pp_rank + 1),
         )
-
+        
+        # Calculate how many TP ranks run on this node
         nnodes_per_tp_group = nnodes_per_pp_rank
         tp_size_per_node = server_args.tp_size // nnodes_per_tp_group
+        
         tp_rank_range = range(
             tp_size_per_node * (server_args.node_rank % nnodes_per_tp_group),
             tp_size_per_node * (server_args.node_rank % nnodes_per_tp_group + 1),
         )
+```
 
-        for pp_rank in pp_rank_range:
-            for tp_rank in tp_rank_range:
-                reader, writer = mp.Pipe(duplex=False)
-                gpu_id = (
-                    server_args.base_gpu_id
-                    + ((pp_rank % pp_size_per_node) * tp_size_per_node)
-                    + (tp_rank % tp_size_per_node) * server_args.gpu_id_step
-                )
-                moe_ep_rank = tp_rank // (server_args.tp_size // server_args.ep_size)
+**What's happening here?**
 
-                with maybe_reindex_device_id(gpu_id) as gpu_id:
-                    proc = mp.Process(
-                        target=run_scheduler_process_func,
-                        args=(
-                            server_args,
-                            port_args,
-                            gpu_id,
-                            tp_rank,
-                            moe_ep_rank,
-                            pp_rank,
-                            None,
-                            writer,
-                        ),
-                    )
-                    with memory_saver_adapter.configure_subprocess(), numa_utils.configure_subprocess(
-                        server_args, gpu_id
-                    ):
-                        proc.start()
+Let's use an example:
 
-                scheduler_procs.append(proc)
-                scheduler_pipe_readers.append(reader)
+```
+Configuration:
+- nnodes = 2 (2 machines)
+- pp_size = 2 (2 pipeline stages)
+- tp_size = 4 (4-way tensor parallelism)
+- node_rank = 0 (we're on the first machine)
+
+Calculation:
+pp_size_per_node = max(2 // 2, 1) = 1  # 1 PP stage per node
+nnodes_per_pp_rank = max(2 // 2, 1) = 1  # 1 node per PP stage
+
+pp_rank_range = range(1 * (0 // 1), 1 * (0 // 1 + 1)) = range(0, 1) = [0]
+# This node runs PP rank 0
+
+tp_size_per_node = 4 // 1 = 4  # All 4 TP ranks on this node
+tp_rank_range = range(4 * (0 % 1), 4 * (0 % 1 + 1)) = range(0, 4) = [0,1,2,3]
+# This node runs TP ranks 0, 1, 2, 3
+```
+
+**Result:** Node 0 launches 4 processes (PP0-TP0, PP0-TP1, PP0-TP2, PP0-TP3)
+
+---
+
+#### GPU Assignment
+
+```python
+for pp_rank in pp_rank_range:
+    for tp_rank in tp_rank_range:
+        # Create a pipe for readiness signaling
+        reader, writer = mp.Pipe(duplex=False)
+        
+        # Calculate which GPU this rank uses
+        gpu_id = (
+            server_args.base_gpu_id  # e.g., 0
+            + ((pp_rank % pp_size_per_node) * tp_size_per_node)
+            + (tp_rank % tp_size_per_node) * server_args.gpu_id_step
+        )
+        
+        # Calculate MoE expert parallelism rank
+        moe_ep_rank = tp_rank // (server_args.tp_size // server_args.ep_size)
+```
+
+**GPU mapping example:**
+
+```
+base_gpu_id = 0
+gpu_id_step = 1
+pp_rank = 0, tp_rank = 0: gpu_id = 0 + 0 + 0 = 0
+pp_rank = 0, tp_rank = 1: gpu_id = 0 + 0 + 1 = 1
+pp_rank = 0, tp_rank = 2: gpu_id = 0 + 0 + 2 = 2
+pp_rank = 0, tp_rank = 3: gpu_id = 0 + 0 + 3 = 3
+```
+
+**`gpu_id_step`** allows skipping GPUs (useful if some are broken or reserved).
+
+---
+
+#### Process Spawning
+
+```python
+        with maybe_reindex_device_id(gpu_id) as gpu_id:
+            proc = mp.Process(
+                target=run_scheduler_process_func,
+                args=(
+                    server_args,
+                    port_args,
+                    gpu_id,
+                    tp_rank,
+                    moe_ep_rank,
+                    pp_rank,
+                    None,  # dp_rank (None for single DP)
+                    writer,  # Pipe to signal readiness
+                ),
+            )
+            
+            with memory_saver_adapter.configure_subprocess(), \
+                 numa_utils.configure_subprocess(server_args, gpu_id):
+                proc.start()
+        
+        scheduler_procs.append(proc)
+        scheduler_pipe_readers.append(reader)
+```
+
+**Context managers explained:**
+
+1. **`maybe_reindex_device_id(gpu_id)`**:
+    - Handles `CUDA_VISIBLE_DEVICES` remapping
+    - If `CUDA_VISIBLE_DEVICES=2,3,4,5`, then logical GPU 0 → physical GPU 2
+2. **`memory_saver_adapter.configure_subprocess()`**:
+    - Sets environment variables for memory tracking
+    - Enables CPU weight offloading if configured
+3. **`numa_utils.configure_subprocess(server_args, gpu_id)`**:
+    - Pins process to NUMA node closest to GPU
+    - On dual-socket servers, GPUs 0-3 might be on NUMA node 0, GPUs 4-7 on NUMA node 1
+    - Reduces memory access latency by 2-3x
+
+---
+
+#### Data Parallelism Mode
+
+```python
     else:
-        # Launch the data parallel controller
+        # dp_size > 1: Launch data parallel controller
         reader, writer = mp.Pipe(duplex=False)
         scheduler_pipe_readers = [reader]
+        
         proc = mp.Process(
             target=run_data_parallel_controller_process,
             kwargs=dict(
@@ -289,15 +512,25 @@ def _launch_scheduler_processes(
         )
         proc.start()
         scheduler_procs.append(proc)
-
-    return scheduler_procs, scheduler_pipe_readers
-
-
 ```
 
-the run scheduler callable comes from 
+**What's the DP controller?**
 
-python/sglang/srt/managers/scheduler.py
+- Manages multiple identical model replicas
+- Routes requests using:
+    - Round-robin (balanced load)
+    - Shortest queue (minimize latency)
+    - Custom routing policies
+
+**Why a separate controller?**
+
+- Centralizes routing logic
+- Can implement sophisticated load balancing
+- Simplifies request tracking across replicas
+
+---
+
+### Scheduler Process Execution: `scheduler.py::run_scheduler_process()`
 
 ```python
 def run_scheduler_process(
@@ -310,11 +543,13 @@ def run_scheduler_process(
     dp_rank: Optional[int],
     pipe_writer,
 ):
-    # Generate the logger prefix
+```
+
+#### Process Setup
+
+```python
+    # Generate logger prefix for identification
     prefix = ""
-    if dp_rank is None and "SGLANG_DP_RANK" in os.environ:
-        # [For Router] if env var "SGLANG_DP_RANK" exist, set dp_rank to the value of the env var
-        dp_rank = int(os.environ["SGLANG_DP_RANK"])
     if dp_rank is not None:
         prefix += f" DP{dp_rank}"
     if server_args.pp_size > 1:
@@ -323,38 +558,100 @@ def run_scheduler_process(
         prefix += f" TP{tp_rank}"
     if server_args.ep_size > 1:
         prefix += f" EP{moe_ep_rank}"
-
-    # Config the process
+    
+    # Set process name (visible in `ps`, `top`, etc.)
     setproctitle.setproctitle(f"sglang::scheduler{prefix.replace(' ', '_')}")
+    
+    # Enable crash dumps
     faulthandler.enable()
+    
+    # Ensure this process dies if parent dies (prevents orphans)
     kill_itself_when_parent_died()
     parent_process = psutil.Process().parent()
+```
 
-    # Configure the logger
-    configure_logger(server_args, prefix=prefix)
-    suppress_other_loggers()
+**Process naming example:**
 
-    # Set cpu affinity to this gpu process
+```
+sglang::scheduler_DP0_PP1_TP2_EP0
+```
+
+Makes debugging multi-process crashes much easier!
+
+---
+
+#### CPU Affinity
+
+```python
     if get_bool_env_var("SGLANG_SET_CPU_AFFINITY"):
         set_gpu_proc_affinity(
-            server_args.pp_size, server_args.tp_size, server_args.nnodes, gpu_id
+            server_args.pp_size, 
+            server_args.tp_size, 
+            server_args.nnodes, 
+            gpu_id
         )
-    if (
-        numa_node := server_args.numa_node
-    ) is not None and not envs.SGLANG_NUMA_BIND_V2.get():
-        numa_bind_to_node(numa_node[gpu_id])
+```
 
-    # Set up tracing
+**What CPU affinity does:**
+
+- Pins process to specific CPU cores
+- Prevents context switching between cores (reduces cache misses)
+- Example on 64-core server with 8 GPUs:
+    
+    ```
+    GPU 0 → Cores 0-7GPU 1 → Cores 8-15GPU 2 → Cores 16-23...
+    ```
+    
+
+---
+
+#### NUMA Binding
+
+```python
+    if (numa_node := server_args.numa_node) is not None:
+        numa_bind_to_node(numa_node[gpu_id])
+```
+
+**NUMA (Non-Uniform Memory Access):**
+
+- Dual-socket servers have two memory banks
+- Accessing "far" memory is slower than "local" memory
+- Example topology:
+    
+    ```
+    Socket 0: CPUs 0-31,  GPUs 0-3,  RAM Bank 0Socket 1: CPUs 32-63, GPUs 4-7,  RAM Bank 1
+    ```
+    
+- Binding GPU 2 to NUMA node 0 ensures fast memory access
+
+---
+
+#### Tracing Setup
+
+```python
     if server_args.enable_trace:
         process_tracing_init(server_args.otlp_traces_endpoint, "sglang")
+        
         thread_label = "Scheduler"
         if server_args.disaggregation_mode == "prefill":
             thread_label = "Prefill Scheduler"
         elif server_args.disaggregation_mode == "decode":
             thread_label = "Decode Scheduler"
+            
         trace_set_thread_info(thread_label, tp_rank, dp_rank)
+```
 
-    # Create a scheduler and run the event loop
+**Distributed tracing:**
+
+- Uses OpenTelemetry Protocol (OTLP)
+- Sends traces to Jaeger/Zipkin for visualization
+- Helps debug latency issues in distributed serving
+
+---
+
+#### Scheduler Initialization
+
+```python
     try:
         scheduler = Scheduler(
             server_args,
@@ -365,29 +662,58 @@ def run_scheduler_process(
             pp_rank,
             dp_rank,
         )
+```
+
+**What `Scheduler.__init__()` does:**
+
+1. Creates `TpWorker` instance
+2. `TpWorker` creates `ModelRunner` instance
+3. `ModelRunner` loads model weights onto GPU
+4. Profiles memory usage
+5. Allocates KV cache memory pools
+6. Sets up batching queues
+
+---
+
+#### Readiness Signaling
+
+```python
         result_dict = {
             "status": "ready",
             "max_total_num_tokens": scheduler.max_total_num_tokens,
             "max_req_input_len": scheduler.max_req_input_len,
         }
+        
         if server_args.remote_instance_weight_loader_use_transfer_engine():
+            # Remote weight loading metadata
             (
                 remote_instance_transfer_engine_session_id,
                 remote_instance_transfer_engine_weights_info_dict,
             ) = scheduler.get_remote_instance_transfer_engine_info()
-            result_dict.update(
-                {
-                    "tp_rank": tp_rank,
-                    "remote_instance_transfer_engine_session_id": remote_instance_transfer_engine_session_id,
-                    "remote_instance_transfer_engine_weights_info_dict": remote_instance_transfer_engine_weights_info_dict,
-                }
-            )
-
+            result_dict.update({
+                "tp_rank": tp_rank,
+                "remote_instance_transfer_engine_session_id": ...,
+                "remote_instance_transfer_engine_weights_info_dict": ...,
+            })
+        
         pipe_writer.send(result_dict)
+```
 
-        # Dispatch to the appropriate event loop based on the disaggregation mode
+**Why send this metadata?**
+
+- Main process needs to know max context length for request validation
+- Remote weight loading needs TP rank-specific metadata
+- Signals readiness to accept requests
+
+---
+
+#### Event Loop Dispatch
+
+```python
         disaggregation_mode: DisaggregationMode = scheduler.disaggregation_mode
+        
         if disaggregation_mode == DisaggregationMode.NULL:
+            # Standard serving (prefill + decode together)
             if scheduler.enable_pdmux:
                 scheduler.event_loop_pdmux()
             elif server_args.pp_size > 1:
@@ -396,216 +722,194 @@ def run_scheduler_process(
                 scheduler.event_loop_overlap()
             else:
                 scheduler.event_loop_normal()
+                
         elif disaggregation_mode == DisaggregationMode.PREFILL:
+            # This instance only does prefill
             if server_args.pp_size > 1:
                 scheduler.event_loop_pp_disagg_prefill()
             elif scheduler.enable_overlap:
                 scheduler.event_loop_overlap_disagg_prefill()
             else:
                 scheduler.event_loop_normal_disagg_prefill()
-
+                
         elif disaggregation_mode == DisaggregationMode.DECODE:
+            # This instance only does decode
             if server_args.pp_size > 1:
                 scheduler.event_loop_pp_disagg_decode()
             elif scheduler.enable_overlap:
                 scheduler.event_loop_overlap_disagg_decode()
             else:
                 scheduler.event_loop_normal_disagg_decode()
+```
 
+**Event loop variants explained:**
+
+|Mode|Description|Use Case|
+|---|---|---|
+|**normal**|Single-threaded, sequential batching|Simplest, good for debugging|
+|**overlap**|Overlaps compute & communication|10-20% better throughput|
+|**pp**|Pipeline parallelism micro-batching|Large models split across GPUs|
+|**pdmux**|Multiplexed prefill/decode|Separate batches for prefill & decode|
+|**disagg_prefill**|Prefill-only instance|Disaggregated serving architecture|
+|**disagg_decode**|Decode-only instance|Disaggregated serving architecture|
+
+**Disaggregated serving:**
+
+- Prefill is compute-bound (matrix multiplications)
+- Decode is memory-bound (KV cache reads)
+- Running them on separate instances allows different tuning:
+    - Prefill: Large batch size, high compute utilization
+    - Decode: Small batch size, low latency
+
+---
+
+#### Error Handling
+
+```python
     except Exception:
         traceback = get_exception_traceback()
         logger.error(f"Scheduler hit an exception: {traceback}")
         parent_process.send_signal(signal.SIGQUIT)
-
 ```
 
+**Why send `SIGQUIT` to parent?**
 
-The scheduler, it needs it own deep dive, it handles model loading (via TP workers) + all peripheri (constrained decoding,  speculative decoding, disaggregation (of inference to two stages, prefill and decode), lora adapters, request aborting), for now I will focus on model loading, will deal with scheduler in seperate file
+- Crashes in subprocess can go unnoticed
+- Parent process needs to shut down entire server cleanly
+- `SIGQUIT` triggers core dump for debugging
 
-python/sglang/srt/managers/scheduler.py
+---
+
+### Detokenizer Process Launch
 
 ```python
-class Scheduler(
-    SchedulerOutputProcessorMixin,
-    SchedulerUpdateWeightsMixin,
-    SchedulerProfilerMixin,
-    SchedulerMetricsMixin,
-    SchedulerDisaggregationDecodeMixin,
-    SchedulerDisaggregationPrefillMixin,
-    SchedulerMultiplexMixin,
-    SchedulerRuntimeCheckerMixin,
-    SchedulerPPMixin,
-    SchedulerDPAttnMixin,
-):
-    """A scheduler that manages a tensor parallel GPU worker."""
-
-    def init_tp_model_worker(self):
-        from sglang.srt.managers.tp_worker import TpModelWorker
-
-        self.tp_worker = TpModelWorker(
-            server_args=self.server_args,
-            gpu_id=self.gpu_id,
-            tp_rank=self.tp_rank,
-            moe_ep_rank=self.moe_ep_rank,
-            pp_rank=self.pp_rank,
-            dp_rank=self.dp_rank,
-            nccl_port=self.nccl_port,
-        )
-        
+detoken_proc = mp.Process(
+    target=run_detokenizer_process_func,
+    args=(server_args, port_args,),
+)
+detoken_proc.start()
 ```
 
-python/sglang/srt/managers/tp_worker.py
+**What detokenizer does:**
 
-On overview it seems like  TpWorker (Base Tp worker) is handling model weight loading but it actually just calls methods with same name in model runner instead
+1. Receives token IDs via ZMQ from scheduler
+2. Converts to UTF-8 strings using tokenizer
+3. Handles streaming (incremental detokenization for `\n`, spaces, etc.)
+4. Sends strings back to TokenizerManager
+
+**Why separate process?**
+
+- Detokenization is CPU-bound (HuggingFace tokenizers are slow)
+- Doesn't block GPU from processing next batch
+- Can run on dedicated CPU cores for lower latency
+
+---
+
+### TokenizerManager Initialization
 
 ```python
-class TpModelWorker(BaseTpWorker):
-    """A tensor parallel model worker."""
+if server_args.tokenizer_worker_num == 1:
+    tokenizer_manager, template_manager = init_tokenizer_manager_func(
+        server_args, port_args
+    )
+else:
+    # Multi-tokenizer router for high-throughput scenarios
+    tokenizer_manager = MultiTokenizerRouter(server_args, port_args)
+    template_manager = None
+```
 
-    def __init__(
-        self,
-        server_args: ServerArgs,
-        gpu_id: int,
-        tp_rank: int,
-        moe_ep_rank: int,
-        pp_rank: int,
-        dp_rank: Optional[int],
-        nccl_port: int,
-        is_draft_worker: bool = False,
-        req_to_token_pool: Optional[ReqToTokenPool] = None,
-        token_to_kv_pool_allocator: Optional[BaseTokenToKVPoolAllocator] = None,
-        is_multi_layer_eagle: bool = False,
-    ):
-        # Parse args
-        self.server_args = server_args
-        self.tp_size = server_args.tp_size
-        self.ep_size = server_args.ep_size
-        self.pp_size = server_args.pp_size
-        self.tp_rank = tp_rank
-        self.moe_ep_rank = moe_ep_rank
-        self.pp_rank = pp_rank
-        self.dp_rank = dp_rank
-        self.gpu_id = gpu_id
-        self.nccl_port = nccl_port
-        self.is_draft_worker = is_draft_worker
-        self.is_multi_layer_eagle = is_multi_layer_eagle
-        self.req_to_token_pool = req_to_token_pool
-        self.token_to_kv_pool_allocator = token_to_kv_pool_allocator
+**Single vs Multi-tokenizer:**
 
-        # MTP model runners
-        self.model_runner_list = []
+|Config|Use Case|Architecture|
+|---|---|---|
+|**Single**|Most deployments|TokenizerManager in main process|
+|**Multi**|Very high QPS (>10k req/s)|Multiple tokenizer workers, router balances load|
 
-        self._init_model_config()
-        self._init_model_runner()
+**`MultiTokenizerRouter`:**
 
-        if is_multi_layer_eagle:
-            self._init_multi_layer_eagle_model_runners()
+- Spawns N tokenizer worker processes
+- Round-robin request distribution
+- Useful when tokenization is the bottleneck (e.g., very long prompts)
 
-        self._init_dllm_algorithm()
+---
 
-        if server_args.skip_tokenizer_init:
-            self.tokenizer = self.processor = None
-        else:
-            if self.model_config.is_multimodal:
-                self.processor = get_processor(
-                    server_args.tokenizer_path,
-                    tokenizer_mode=server_args.tokenizer_mode,
-                    trust_remote_code=server_args.trust_remote_code,
-                    revision=server_args.revision,
-                )
-                self.tokenizer = get_tokenizer_from_processor(self.processor)
+### Waiting for Readiness
+
+```python
+scheduler_infos = _wait_for_scheduler_ready(scheduler_pipe_readers, scheduler_procs)
+```
+
+**What this does:**
+
+```python
+def _wait_for_scheduler_ready(pipe_readers, procs):
+    infos = []
+    for reader, proc in zip(pipe_readers, procs):
+        if reader.poll(timeout=600):  # 10 minute timeout
+            info = reader.recv()
+            if info["status"] == "ready":
+                infos.append(info)
             else:
-                self.tokenizer = get_tokenizer(
-                    server_args.tokenizer_path,
-                    tokenizer_mode=server_args.tokenizer_mode,
-                    trust_remote_code=server_args.trust_remote_code,
-                    revision=server_args.revision,
-                )
-        self.device = self.model_runner.device
-
-        # Init nccl groups
-        self.pp_group = get_pp_group()
-        self.world_group = get_world_group()
-
-        # Profile number of tokens
-        self.max_total_num_tokens = self.model_runner.max_total_num_tokens
-        self.max_prefill_tokens = server_args.max_prefill_tokens
-        self.max_running_requests = self.model_runner.max_running_requests
-        assert self.max_running_requests > 0, "max_running_request is zero"
-        self.max_queued_requests = server_args.max_queued_requests
-        assert (
-            self.max_queued_requests is None or self.max_queued_requests >= 1
-        ), "If configured, max_queued_requests must be at least 1 for any work to be scheduled."
-        self.max_req_len = min(
-            self.model_config.context_len - 1,
-            self.model_runner.max_token_pool_size - 1,
-        )
-        self.max_req_input_len = self.max_req_len - 5
-        assert (
-            self.max_req_len > 0 and self.max_req_input_len > 0
-        ), "Memory pool size is too small"
-
-        # Sync random seed across TP workers
-        self.random_seed = broadcast_pyobj(
-            [server_args.random_seed],
-            self.tp_size * self.pp_rank + tp_rank,
-            self.world_group.cpu_group,
-            src=self.world_group.ranks[0],
-        )[0]
-        set_random_seed(self.random_seed)
-
-        self.enable_overlap = not server_args.disable_overlap_schedule
-        self.enable_spec = server_args.speculative_algorithm is not None
-        self.hicache_layer_transfer_counter = None
-
-    def _init_model_config(self):
-        from sglang.srt.configs.model_config import ModelConfig
-
-        self.model_config = ModelConfig.from_server_args(
-            self.server_args,
-            model_path=(
-                self.server_args.model_path
-                if not self.is_draft_worker
-                else self.server_args.speculative_draft_model_path
-            ),
-            model_revision=(
-                self.server_args.revision
-                if not self.is_draft_worker
-                else self.server_args.speculative_draft_model_revision
-            ),
-            is_draft_model=self.is_draft_worker,
-        )
-
-    def _init_model_runner(self):
-        from sglang.srt.model_executor.model_runner import ModelRunner
-
-        self._model_runner = ModelRunner(
-            model_config=self.model_config,
-            mem_fraction_static=self.server_args.mem_fraction_static,
-            gpu_id=self.gpu_id,
-            tp_rank=self.tp_rank,
-            tp_size=self.tp_size,
-            moe_ep_rank=self.moe_ep_rank,
-            moe_ep_size=self.ep_size,
-            pp_rank=self.pp_rank,
-            pp_size=self.pp_size,
-            nccl_port=self.nccl_port,
-            dp_rank=self.dp_rank,
-            server_args=self.server_args,
-            is_draft_worker=self.is_draft_worker,
-            req_to_token_pool=self.req_to_token_pool,
-            token_to_kv_pool_allocator=self.token_to_kv_pool_allocator,
-            draft_model_idx=0 if self.is_multi_layer_eagle else None,
-        )
-
+                raise RuntimeError(f"Scheduler failed: {info}")
+        else:
+            raise TimeoutError("Scheduler took too long to start")
+    return infos
 ```
 
-python/sglang/srt/model_executor/model_runner.py
+**Why 10 minute timeout?**
+
+- Large models (70B+) can take 5+ minutes to load
+- Downloading from HuggingFace Hub can be slow
+- Network-based weight loading is also slow
+
+---
+
+### Sync Metadata Back
+
+```python
+tokenizer_manager.max_req_input_len = scheduler_infos[0]["max_req_input_len"]
+```
+
+**Why sync this?**
+
+- TokenizerManager needs to reject requests longer than model's context window
+- Avoids sending invalid requests to scheduler
+- Example: Model has 4096 context, reject prompts with 5000 tokens
+
+---
+
+## Model Loading Pipeline
+
+### Overview
+
+The model loading pipeline is responsible for:
+
+1. Discovering weight files (local or remote)
+2. Creating an empty model structure with correct architecture
+3. Loading weights with TP/PP sharding
+4. Post-processing (quantization, RoPE cache, etc.)
+
+---
+
+### Key Classes
+
+#### `ModelRunner` (`srt/model_executor/model_runner.py`)
+
+This is the core inference engine.
 
 ```python
 class ModelRunner(ModelRunnerKVCacheMixin):
-    """ModelRunner runs the forward passes of the models."""
-
+    """
+    Manages model execution and memory.
+    
+    Responsibilities:
+    - Load model weights
+    - Profile memory usage
+    - Allocate KV cache
+    - Execute forward passes
+    - Manage attention backends
+    """
+    
     def __init__(
         self,
         model_config: ModelConfig,
@@ -625,571 +929,1993 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         token_to_kv_pool_allocator: Optional[BaseTokenToKVPoolAllocator] = None,
         draft_model_idx: Optional[int] = None,
     ):
+```
 
+**Key initialization steps:**
 
-    def load_model(self):
-        tic_total = time.perf_counter()
-        before_avail_memory = get_available_gpu_memory(self.device, self.gpu_id)
-        logger.info(
-            f"Load weight begin. avail mem={get_available_gpu_memory(self.device, self.gpu_id):.2f} GB"
+1. **Parse configuration:**
+    
+    ```python
+    self.model_config = model_config
+    self.tp_rank = tp_rank
+    self.tp_size = tp_size
+    self.pp_rank = pp_rank
+    self.pp_size = pp_size
+    self.device = f"cuda:{gpu_id}"
+    ```
+    
+2. **Initialize distributed state:**
+    
+    ```python
+    # Sets up process groups for NCCL communication
+    init_distributed_environment(
+        backend="nccl",
+        world_size=tp_size * pp_size,
+        rank=tp_rank + pp_rank * tp_size,
+        dist_init_method=f"tcp://localhost:{nccl_port}",
+    )
+    ```
+    
+3. **Setup memory pools:**
+    
+    ```python
+    if req_to_token_pool is None:
+        # Create shared pool for token IDs
+        self.req_to_token_pool = ReqToTokenPool(
+            size=server_args.max_total_num_tokens,
+            max_context_len=model_config.context_len,
         )
-
-        # This can reduce thread conflicts and speed up weight loading.
-        if self.device != "cpu":
-            torch.set_num_threads(1)
-        if self.device == "cuda":
-            if torch.cuda.get_device_capability()[0] < 8:
-                logger.info(
-                    "Compute capability below sm80. Use float16 due to lack of bfloat16 support."
-                )
-                self.server_args.dtype = "float16"
-                self.model_config.dtype = torch.float16
-                if torch.cuda.get_device_capability()[1] < 5:
-                    raise RuntimeError("SGLang only supports sm75 and above.")
-
-        set_cuda_arch()
-
-        # Prepare the model config
-        from sglang.srt.configs.modelopt_config import ModelOptConfig
-
-        modelopt_config = ModelOptConfig(
-            quant=self.server_args.modelopt_quant,
-            checkpoint_restore_path=self.server_args.modelopt_checkpoint_restore_path,
-            checkpoint_save_path=self.server_args.modelopt_checkpoint_save_path,
-            export_path=self.server_args.modelopt_export_path,
-            quantize_and_serve=self.server_args.quantize_and_serve,
+    
+    if token_to_kv_pool_allocator is None:
+        # Create KV cache allocator
+        self.token_to_kv_pool_allocator = create_kv_pool_allocator(
+            server_args=server_args,
+            model_config=model_config,
         )
+    ```
+    
+4. **Load model:**
+    
+    ```python
+    self.load_model()
+    ```
+    
 
-        self.load_config = LoadConfig(
-            load_format=self.server_args.load_format,
-            download_dir=self.server_args.download_dir,
-            model_loader_extra_config=self.server_args.model_loader_extra_config,
-            tp_rank=self.tp_rank,
-            remote_instance_weight_loader_seed_instance_ip=self.server_args.remote_instance_weight_loader_seed_instance_ip,
-            remote_instance_weight_loader_seed_instance_service_port=self.server_args.remote_instance_weight_loader_seed_instance_service_port,
-            remote_instance_weight_loader_send_weights_group_ports=self.server_args.remote_instance_weight_loader_send_weights_group_ports,
-            remote_instance_weight_loader_backend=self.server_args.remote_instance_weight_loader_backend,
-            remote_instance_weight_loader_transfer_engine=self.remote_instance_transfer_engine,
-            modelopt_config=modelopt_config,
-            rl_quant_profile=self.server_args.rl_quant_profile,
-            draft_model_idx=self.draft_model_idx,
-        )
-        if self.device == "cpu":
-            self.model_config = adjust_config_with_unaligned_cpu_tp(
-                self.model_config, self.load_config, self.tp_size
-            )
+---
 
-        if (
-            self.server_args.load_format == LoadFormat.REMOTE_INSTANCE
-            and self.server_args.remote_instance_weight_loader_backend
-            == RemoteInstanceWeightLoaderBackend.NCCL
-        ):
-            if self.tp_rank == 0:
-                instance_ip = socket.gethostbyname(socket.gethostname())
-                t = threading.Thread(
-                    target=trigger_init_weights_send_group_for_remote_instance_request,
-                    args=(
-                        self.server_args.remote_instance_weight_loader_seed_instance_ip,
-                        self.server_args.remote_instance_weight_loader_seed_instance_service_port,
-                        self.server_args.remote_instance_weight_loader_send_weights_group_ports,
-                        instance_ip,
-                    ),
-                )
-                t.start()
+### `load_model()` Deep Dive
 
-        # Load the model
-        # Remove monkey_patch when linear.py quant remove dependencies with vllm
-        monkey_patch_vllm_parallel_state()
+```python
+def load_model(self):
+    tic_total = time.perf_counter()
+    before_avail_memory = get_available_gpu_memory(self.device, self.gpu_id)
+    logger.info(
+        f"Load weight begin. avail mem={before_avail_memory:.2f} GB"
+    )
+```
 
-        enable_cpu_backup = self.server_args.enable_weights_cpu_backup or (
-            self.is_draft_worker and self.server_args.enable_draft_weights_cpu_backup
-        )
-        with self.memory_saver_adapter.region(
-            GPU_MEMORY_TYPE_WEIGHTS,
-            enable_cpu_backup=enable_cpu_backup,
-        ):
-            self.loader = get_model_loader(
-                load_config=self.load_config,
-                model_config=self.model_config,
-            )
-            self.model = self.loader.load_model(
-                model_config=self.model_config,
-                device_config=DeviceConfig(self.device, self.gpu_id),
-            )
-            if hasattr(self.loader, "remote_instance_transfer_engine_weight_info"):
-                self.remote_instance_transfer_engine_weight_info = (
-                    self.loader.remote_instance_transfer_engine_weight_info
-                )
-        monkey_patch_vllm_parallel_state(reverse=True)
+#### Thread Configuration
 
-        get_offloader().post_init()
+```python
+    # Reduce thread contention during weight loading
+    if self.device != "cpu":
+        torch.set_num_threads(1)
+```
 
-        # Register model for layerwise NVTX profiling if enabled
-        if self.server_args.enable_layerwise_nvtx_marker:
-            self.pyt_hooks = PytHooks()
-            self.pyt_hooks.register_hooks(self.model, module_prefix="model")
+**Why set threads to 1?**
 
-        if self.server_args.kv_cache_dtype == "fp8_e4m3":
-            if self.server_args.quantization_param_path is not None:
-                if callable(getattr(self.model, "load_kv_cache_scales", None)):
-                    self.model.load_kv_cache_scales(
-                        self.server_args.quantization_param_path
-                    )
-                    logger.info(
-                        "Loaded KV cache scaling factors from %s",
-                        self.server_args.quantization_param_path,
-                    )
-                else:
-                    raise RuntimeError(
-                        "Using FP8 KV cache and scaling factors provided but "
-                        "model %s does not support loading scaling factors.",
-                        self.model.__class__,
-                    )
-            else:
-                logger.warning(
-                    "Using FP8 KV cache but no scaling factors "
-                    "provided. Defaulting to scaling factors of 1.0. "
-                    "This may lead to less accurate results!"
-                )
+- During parallel loading (TP ranks load simultaneously)
+- PyTorch's default thread pool can cause contention
+- Each process uses only 1 CPU core → no benefit from multi-threading
+- Reduces mutex contention and cache thrashing
 
-        # Parse other args
-        self.sliding_window_size = None
-        if hasattr(self.model, "get_attention_sliding_window_size"):
-            self.sliding_window_size = self.model.get_attention_sliding_window_size()
-        elif (
-            self.model_config.is_hybrid_swa
-            and self.model_config.sliding_window_size is not None
-        ):
-            # sliding window field in model config may have different meaning for different kinds of models (e.g., dllm), here we only consider the sliding window in SWA model
-            self.sliding_window_size = self.model_config.sliding_window_size
-        elif self.model_config.attention_chunk_size is not None:
-            self.sliding_window_size = self.model_config.attention_chunk_size
+---
+
+#### Device Capability Checks
+
+```python
+    if self.device == "cuda":
+        if torch.cuda.get_device_capability()[0] < 8:
             logger.info(
-                f"Setting sliding_window_size to be attention_chunk_size: {self.sliding_window_size}"
+                "Compute capability below sm80. "
+                "Use float16 due to lack of bfloat16 support."
             )
-
-        self.dtype = self.model_config.dtype
-
-        after_avail_memory = get_available_gpu_memory(self.device, self.gpu_id)
-        self.weight_load_mem_usage = before_avail_memory - after_avail_memory
-        logger.info(
-            f"Load weight end. "
-            f"elapsed={time.perf_counter() - tic_total:.2f} s, "
-            f"type={type(self.model).__name__}, "
-            f"dtype={self.dtype}, "
-            f"avail mem={after_avail_memory:.2f} GB, "
-            f"mem usage={self.weight_load_mem_usage:.2f} GB."
-        )
-        if self.server_args.debug_tensor_dump_output_folder is not None:
-            register_forward_hook_for_model(
-                self.model,
-                self.server_args.debug_tensor_dump_output_folder,
-                self.server_args.debug_tensor_dump_layers,
-                self.tp_size,
-                self.tp_rank,
-                self.pp_rank,
-            )
-
-        # Pre-expand RoPE cache before CUDA Graph capture
-        reserve_rope_cache_for_long_sequences(
-            self.model,
-            self.server_args,
-            self.model_config,
-            logger,
-        )
-
-        if self.server_args.elastic_ep_backend == "mooncake":
-            # Mooncake does not support `monitored_barrier`
-            dist.barrier(group=get_tp_group().cpu_group)
-        else:
-            # Handle the case where some ranks do not finish loading.
-            try:
-                dist.monitored_barrier(
-                    group=get_tp_group().cpu_group,
-                    timeout=datetime.timedelta(
-                        seconds=UNBALANCED_MODEL_LOADING_TIMEOUT_S
-                    ),
-                    wait_all_ranks=True,
-                )
-            except RuntimeError:
-                raise ValueError(
-                    f"TP rank {self.tp_rank} could finish the model loading, but there are other ranks that didn't finish loading. It is likely due to unexpected failures (e.g., OOM) or a slow node."
-                ) from None
-
-
+            self.server_args.dtype = "float16"
+            self.model_config.dtype = torch.float16
+            
+            if torch.cuda.get_device_capability()[1] < 5:
+                raise RuntimeError("SGLang only supports sm75 and above.")
 ```
 
+**NVIDIA GPU Compute Capabilities:**
 
+|Arch|SM|GPUs|bfloat16 Support|
+|---|---|---|---|
+|Turing|75|RTX 20xx, T4|❌|
+|Ampere|80|A100, RTX 30xx|✅|
+|Ada Lovelace|89|RTX 40xx, L40|✅|
+|Hopper|90|H100, H200|✅|
 
-`ModelRunner` is the core component that manages and executes model inference. It inherits from `ModelRunnerKVCacheMixin`, which provides KV cache management functionality.
+**Why bfloat16 matters:**
+
+- Same range as float32 (8 exponent bits)
+- Better for training/inference than float16 (less likely to overflow)
+- Natively supported on modern GPUs (faster than float16 on Ampere+)
 
 ---
 
-## **Initialization Parameters**
+#### CUDA Architecture Detection
 
-Let me explain the key `__init__` parameters:
+```python
+    set_cuda_arch()
+```
 
-### **Parallelism Settings:**
-- **`tp_rank/tp_size`**: Tensor Parallelism - splits model layers across GPUs horizontally
-- **`pp_rank/pp_size`**: Pipeline Parallelism - splits model layers vertically (different layers on different GPUs)
-- **`dp_rank`**: Data Parallelism - replicates the model across GPUs
-- **`moe_ep_rank/moe_ep_size`**: Expert Parallelism for MoE (Mixture of Experts) models
+**What this does:**
 
-### **Memory Management:**
-- **`mem_fraction_static`**: Fraction of GPU memory reserved for static allocations
-- **`req_to_token_pool`**: Pool mapping requests to token IDs
-- **`token_to_kv_pool_allocator`**: Manages KV cache memory allocation
+```python
+def set_cuda_arch():
+    # Detects GPU architecture and sets environment variables
+    # Used by custom CUDA kernels to compile for correct SM version
+    
+    capability = torch.cuda.get_device_capability()
+    arch = f"sm_{capability[0]}{capability[1]}"
+    os.environ["TORCH_CUDA_ARCH_LIST"] = arch
+```
 
-### **Configuration:**
-- **`model_config`**: Model architecture details (layers, hidden size, etc.)
-- **`server_args`**: Runtime arguments (dtype, quantization, etc.)
-- **`is_draft_worker`**: Whether this is for speculative decoding (draft model)
+**Why needed?**
+
+- Custom kernels (FlashAttention, etc.) compile at runtime
+- Need to know target architecture for optimal code generation
 
 ---
 
-## **The `load_model()` Method - Step by Step**
+#### Load Configuration
 
-### **1. Memory Tracking & Thread Setup**
 ```python
-before_avail_memory = get_available_gpu_memory(self.device, self.gpu_id)
-torch.set_num_threads(1)
+    from sglang.srt.configs.modelopt_config import ModelOptConfig
+    
+    modelopt_config = ModelOptConfig(
+        quant=self.server_args.modelopt_quant,
+        checkpoint_restore_path=self.server_args.modelopt_checkpoint_restore_path,
+        checkpoint_save_path=self.server_args.modelopt_checkpoint_save_path,
+        export_path=self.server_args.modelopt_export_path,
+        quantize_and_serve=self.server_args.quantize_and_serve,
+    )
+    
+    self.load_config = LoadConfig(
+        load_format=self.server_args.load_format,
+        download_dir=self.server_args.download_dir,
+        model_loader_extra_config=self.server_args.model_loader_extra_config,
+        tp_rank=self.tp_rank,
+        remote_instance_weight_loader_seed_instance_ip=...,
+        remote_instance_weight_loader_seed_instance_service_port=...,
+        remote_instance_weight_loader_send_weights_group_ports=...,
+        remote_instance_weight_loader_backend=...,
+        remote_instance_weight_loader_transfer_engine=...,
+        modelopt_config=modelopt_config,
+        rl_quant_profile=self.server_args.rl_quant_profile,
+        draft_model_idx=self.draft_model_idx,
+    )
 ```
-- Records memory before loading to calculate weight size
-- Sets threads to 1 to avoid conflicts during parallel loading
 
-### **2. Device Capability Checks**
+**Load formats:**
+
+|Format|Description|Use Case|
+|---|---|---|
+|`auto`|Try safetensors, fallback to .pt|Default|
+|`safetensors`|HuggingFace format|Fast, memory-efficient|
+|`fastsafetensors`|Optimized safetensors|Even faster loading|
+|`pt`|PyTorch checkpoint|Legacy models|
+|`mistral`|Mistral consolidated format|Mistral models|
+|`dummy`|Random weights|Testing, profiling|
+|`remote_instance`|Load from another server|Multi-instance deployment|
+|`npcache`|NumPy cache|Custom formats|
+
+---
+
+#### CPU TP Adjustment
+
 ```python
-if torch.cuda.get_device_capability()[0] < 8:
-    self.server_args.dtype = "float16"
+    if self.device == "cpu":
+        self.model_config = adjust_config_with_unaligned_cpu_tp(
+            self.model_config, self.load_config, self.tp_size
+        )
 ```
-- **SM80** = NVIDIA Ampere (A100, RTX 30xx)
-- Older GPUs don't support bfloat16, so it falls back to float16
-- **SM75** (Turing) is the minimum supported
 
-### **3. Configure Load Strategy**
+**What's "unaligned CPU TP"?**
+
+Example:
+
+```
+Model: LLaMA 7B
+- num_attention_heads = 32
+- hidden_size = 4096
+- intermediate_size = 11008
+
+TP size = 5
+```
+
+Problem: `32 % 5 != 0` (can't evenly split attention heads)
+
+Solution: Pad to 35 heads, use only 32, waste some compute
+
+**Why only for CPU?**
+
+- GPU TP uses more sophisticated sharding (can split individual heads)
+- CPU TP is simpler, requires even division
+
+---
+
+#### Remote Instance Weight Loading (NCCL Backend)
+
 ```python
-self.load_config = LoadConfig(
-    load_format=self.server_args.load_format,
-    download_dir=self.server_args.download_dir,
+    if (
+        self.server_args.load_format == LoadFormat.REMOTE_INSTANCE
+        and self.server_args.remote_instance_weight_loader_backend
+        == RemoteInstanceWeightLoaderBackend.NCCL
+    ):
+        if self.tp_rank == 0:
+            instance_ip = socket.gethostbyname(socket.gethostname())
+            t = threading.Thread(
+                target=trigger_init_weights_send_group_for_remote_instance_request,
+                args=(
+                    self.server_args.remote_instance_weight_loader_seed_instance_ip,
+                    self.server_args.remote_instance_weight_loader_seed_instance_service_port,
+                    self.server_args.remote_instance_weight_loader_send_weights_group_ports,
+                    instance_ip,
+                ),
+            )
+            t.start()
+```
+
+**Remote weight loading architecture:**
+
+```
+┌─────────────────────────────────────┐
+│   Seed Instance (has weights)       │
+│   - Loaded model from disk          │
+│   - Runs NCCL send server           │
+└─────────────┬───────────────────────┘
+              │ NCCL Send
+              ▼
+┌─────────────────────────────────────┐
+│   Client Instance (no local weights)│
+│   - Receives weights over network   │
+│   - Uses NCCL recv                  │
+│   - Saves memory & disk space       │
+└─────────────────────────────────────┘
+```
+
+**Use case:**
+
+- 10 GPU servers want to serve same model
+- Instead of each downloading 70GB, only one downloads
+- Others stream weights from the first server
+- Saves 630GB of network bandwidth & disk space
+
+**NCCL vs HTTP backend:**
+
+- NCCL: Faster (GPU Direct RDMA), but requires NCCL-compatible network
+- HTTP: Slower, but works on any network
+
+---
+
+#### Model Loading with Memory Tracking
+
+```python
+    monkey_patch_vllm_parallel_state()
+    
+    enable_cpu_backup = self.server_args.enable_weights_cpu_backup or (
+        self.is_draft_worker and self.server_args.enable_draft_weights_cpu_backup
+    )
+    
+    with self.memory_saver_adapter.region(
+        GPU_MEMORY_TYPE_WEIGHTS,
+        enable_cpu_backup=enable_cpu_backup,
+    ):
+        self.loader = get_model_loader(
+            load_config=self.load_config,
+            model_config=self.model_config,
+        )
+        self.model = self.loader.load_model(
+            model_config=self.model_config,
+            device_config=DeviceConfig(self.device, self.gpu_id),
+        )
+        
+        if hasattr(self.loader, "remote_instance_transfer_engine_weight_info"):
+            self.remote_instance_transfer_engine_weight_info = (
+                self.loader.remote_instance_transfer_engine_weight_info
+            )
+    
+    monkey_patch_vllm_parallel_state(reverse=True)
+```
+
+**Monkey patching vLLM:**
+
+SGLang reuses some vLLM components (e.g., quantization kernels, attention backends), but vLLM's parallel state management assumes a different architecture.
+
+```python
+def monkey_patch_vllm_parallel_state():
+    # Save original functions
+    original_funcs = {}
+    original_funcs["get_tensor_model_parallel_world_size"] = (
+        vllm.get_tensor_model_parallel_world_size
+    )
+    
+    # Replace with SGLang's versions
+    vllm.get_tensor_model_parallel_world_size = sglang_get_tp_world_size
     ...
-)
+
+def monkey_patch_vllm_parallel_state(reverse=True):
+    # Restore original functions
+    vllm.get_tensor_model_parallel_world_size = (
+        original_funcs["get_tensor_model_parallel_world_size"]
+    )
 ```
 
-**Load formats include:**
-- **`auto`**: Automatically detect format
-- **`pt`**: PyTorch checkpoint
-- **`safetensors`**: Hugging Face format (safer, faster)
-- **`dummy`**: Random weights for testing
-- **`REMOTE_INSTANCE`**: Load weights from another instance (distributed serving)
+**Why patch and unpatch?**
 
-### **4. Remote Instance Loading (Optional)**
-```python
-if self.server_args.load_format == LoadFormat.REMOTE_INSTANCE:
-```
-This allows multiple GPU instances to share weights over network using NCCL (NVIDIA's communication library):
-- One "seed instance" has the weights
-- Other instances download weights via network
-- Saves memory and disk space in multi-node deployments
+- Only needed during model loading
+- After loading, SGLang uses its own parallel state
+- Unpatching avoids interfering with other code
 
-### **5. Actual Model Loading**
-```python
-monkey_patch_vllm_parallel_state()
-```
-**Why monkey patch?** SGLang uses some vLLM components but needs to override parallel state management for its own parallelism strategy.
+---
+
+**Memory Saver Adapter:**
 
 ```python
-with self.memory_saver_adapter.region(
-    GPU_MEMORY_TYPE_WEIGHTS,
-    enable_cpu_backup=enable_cpu_backup,
-):
-    self.loader = get_model_loader(load_config=self.load_config, ...)
-    self.model = self.loader.load_model(...)
+class MemorySaverAdapter:
+    """
+    Tracks GPU memory usage by region.
+    Optionally offloads regions to CPU.
+    """
+    
+    def region(self, region_type, enable_cpu_backup=False):
+        return MemoryRegion(
+            adapter=self,
+            region_type=region_type,
+            enable_cpu_backup=enable_cpu_backup,
+        )
 ```
 
-**Memory saver adapter**: Context manager that:
-- Tracks memory usage by region (weights vs KV cache vs activation)
-- Optionally backs up weights to CPU if `enable_cpu_backup=True`
-- Enables weight offloading for memory-constrained scenarios
+**How it works:**
 
-**Loader types** (from `get_model_loader`):
-- `DefaultModelLoader`: Standard loading from disk
-- `RemoteInstanceModelLoader`: Network-based loading
-- `DummyModelLoader`: Random weights for testing
-
-### **6. FP8 KV Cache Configuration**
 ```python
-if self.server_args.kv_cache_dtype == "fp8_e4m3":
+# Before entering region
+free_memory_before = torch.cuda.mem_get_info()[0]
+
+with memory_saver_adapter.region(GPU_MEMORY_TYPE_WEIGHTS, enable_cpu_backup=True):
+    # Load model weights
+    model.load_state_dict(...)
+    
+    # After loading
+    free_memory_after = torch.cuda.mem_get_info()[0]
+    weight_usage = free_memory_before - free_memory_after
+    
+    if enable_cpu_backup:
+        # Copy weights to CPU
+        cpu_weights = {k: v.cpu() for k, v in model.state_dict().items()}
+        
+        # Free GPU memory
+        model.cpu()
+        torch.cuda.empty_cache()
+        
+        # Reload only when needed
+        # (SGLang doesn't actually do this, but the adapter supports it)
 ```
-- **FP8**: 8-bit floating point for KV cache (saves memory)
+
+**Use cases:**
+
+- **Model too large for GPU**: Load, run forward pass, offload
+- **Multi-model serving**: Swap models in/out of GPU memory
+- **Memory profiling**: Track exactly how much memory each component uses
+
+---
+
+#### FP8 KV Cache Scaling Factors
+
+```python
+    if self.server_args.kv_cache_dtype == "fp8_e4m3":
+        if self.server_args.quantization_param_path is not None:
+            if callable(getattr(self.model, "load_kv_cache_scales", None)):
+                self.model.load_kv_cache_scales(
+                    self.server_args.quantization_param_path
+                )
+                logger.info(
+                    "Loaded KV cache scaling factors from %s",
+                    self.server_args.quantization_param_path,
+                )
+            else:
+                raise RuntimeError(
+                    "Using FP8 KV cache and scaling factors provided but "
+                    "model %s does not support loading scaling factors.",
+                    self.model.__class__,
+                )
+        else:
+            logger.warning(
+                "Using FP8 KV cache but no scaling factors "
+                "provided. Defaulting to scaling factors of 1.0. "
+                "This may lead to less accurate results!"
+            )
+```
+
+**FP8 quantization for KV cache:**
+
+Normal KV cache:
+
+```
+Q: [seq_len, num_heads, head_dim] in bfloat16 = 2 bytes per element
+K: [seq_len, num_heads, head_dim] in bfloat16 = 2 bytes per element
+V: [seq_len, num_heads, head_dim] in bfloat16 = 2 bytes per element
+
+Example: 2048 tokens, 32 heads, 128 head_dim
+= 2048 * 32 * 128 * 2 bytes * 2 (K+V)
+= 33.5 MB per request
+```
+
+FP8 KV cache:
+
+```
+K: [seq_len, num_heads, head_dim] in fp8_e4m3 = 1 byte per element
+V: [seq_len, num_heads, head_dim] in fp8_e4m3 = 1 byte per element
+
+Same example:
+= 2048 * 32 * 128 * 1 byte * 2 (K+V)
+= 16.7 MB per request
+
+50% memory savings!
+```
+
+**Why scaling factors?**
+
+FP8 has limited range:
+
 - **e4m3**: 4 exponent bits, 3 mantissa bits
-- Requires scaling factors to maintain accuracy
-- Loads from `quantization_param_path` if provided
+- Max value: ~448
+- Min value: ~0.002
 
-### **7. Sliding Window Attention**
-```python
-self.sliding_window_size = self.model.get_attention_sliding_window_size()
-```
-- Used by models like Mistral that only attend to recent tokens
-- Reduces memory usage for long sequences
-- Falls back to `attention_chunk_size` if not defined
+If KV values are outside this range, they clip → accuracy loss.
 
-### **8. Memory Usage Reporting**
-```python
-self.weight_load_mem_usage = before_avail_memory - after_avail_memory
-```
-Calculates actual GPU memory consumed by weights.
+Solution: Per-layer scaling factors
 
-### **9. RoPE Cache Pre-expansion**
 ```python
-reserve_rope_cache_for_long_sequences(self.model, ...)
-```
-**RoPE (Rotary Position Embeddings)**: 
-- Requires precomputed sin/cos values
-- Pre-allocates before CUDA Graph capture (graphs require static memory)
-- Avoids memory allocation during inference
+# Calibration (done offline)
+for layer in model.layers:
+    k_max = torch.abs(k_cache[layer]).max()
+    v_max = torch.abs(v_cache[layer]).max()
+    
+    k_scale = 448.0 / k_max
+    v_scale = 448.0 / v_max
+    
+    save(k_scale, v_scale)
 
-### **10. Distributed Synchronization**
-```python
-dist.monitored_barrier(group=get_tp_group().cpu_group, ...)
+# Inference (runtime)
+k_fp8 = (k_fp16 * k_scale).to(torch.float8_e4m3fn)
+v_fp8 = (v_fp16 * v_scale).to(torch.float8_e4m3fn)
+
+# Dequantize for attention
+k_fp16 = k_fp8.to(torch.bfloat16) / k_scale
+v_fp16 = v_fp8.to(torch.bfloat16) / v_scale
 ```
-- Ensures all TP ranks finish loading before proceeding
-- **Timeout**: 1800s (30 min) for slow nodes
-- Catches OOM errors or hardware failures early
 
 ---
 
-## **Key Concepts Summary**
+#### Sliding Window Size
 
-| Concept | Purpose |
-|---------|---------|
-| **Tensor Parallelism** | Split layers horizontally across GPUs |
-| **Memory Saver Adapter** | Track and manage different memory regions |
-| **Remote Instance Loading** | Share weights across network to save memory |
-| **Monkey Patching** | Override vLLM components for SGLang's needs |
-| **CUDA Graph** | Pre-record GPU operations for faster inference |
-| **KV Cache** | Store attention keys/values to avoid recomputation |
-| **Weight Offloading** | Move weights to CPU when GPU memory is tight |
+```python
+    self.sliding_window_size = None
+    if hasattr(self.model, "get_attention_sliding_window_size"):
+        self.sliding_window_size = self.model.get_attention_sliding_window_size()
+    elif (
+        self.model_config.is_hybrid_swa
+        and self.model_config.sliding_window_size is not None
+    ):
+        self.sliding_window_size = self.model_config.sliding_window_size
+    elif self.model_config.attention_chunk_size is not None:
+        self.sliding_window_size = self.model_config.attention_chunk_size
+```
+
+**Sliding Window Attention (SWA):**
+
+Normal attention:
+
+```
+Token at position 1000 attends to all 1000 previous tokens
+→ O(n²) memory and compute
+```
+
+Sliding window attention:
+
+```
+Token at position 1000 attends to last 512 tokens only
+→ O(n * window_size) memory and compute
+```
+
+**Models using SWA:**
+
+- Mistral (window size = 4096)
+- Mixtral (window size = 4096)
+- Some long-context models
+
+**Hybrid SWA:**
+
+- Some layers use full attention
+- Other layers use sliding window
+- Reduces memory while maintaining quality
 
 ---
 
-## **Common Loading Patterns**
+#### Memory Usage Reporting
 
-**Single GPU:**
 ```python
-tp_size=1, pp_size=1, moe_ep_size=1
+    after_avail_memory = get_available_gpu_memory(self.device, self.gpu_id)
+    self.weight_load_mem_usage = before_avail_memory - after_avail_memory
+    
+    logger.info(
+        f"Load weight end. "
+        f"elapsed={time.perf_counter() - tic_total:.2f} s, "
+        f"type={type(self.model).__name__}, "
+        f"dtype={self.dtype}, "
+        f"avail mem={after_avail_memory:.2f} GB, "
+        f"mem usage={self.weight_load_mem_usage:.2f} GB."
+    )
 ```
 
-**Multi-GPU (4x A100):**
-```python
-tp_size=4  # Split model across 4 GPUs
+**Example output:**
+
+```
+Load weight end. elapsed=12.3s, type=LlamaForCausalLM, dtype=torch.bfloat16, 
+avail mem=45.2 GB, mem usage=14.8 GB.
 ```
 
-**Multi-Node with Remote Loading:**
-```python
-load_format="REMOTE_INSTANCE"
-remote_instance_weight_loader_seed_instance_ip="192.168.1.100"
-```
-
-This design allows SGLang to efficiently serve large models across diverse hardware configurations while managing GPU memory carefully. The complexity handles distributed loading, memory pressure, different hardware capabilities, and performance optimization.
-
-
-python/sglang/srt/model_loader/loader.py
-
-def get_model_loader -> class DefaultModelLoader
-
-
-`DefaultModelLoader` is the standard model loader in SGLang that loads model weights from disk into the initialized model structure. It handles downloading, file format detection, and weight distribution to the appropriate model parameters.
+This helps debug OOM issues and optimize memory allocation.
 
 ---
 
-## **Key Components**
+#### Debug Tensor Dumping
 
-### **1. Source Dataclass**
+```python
+    if self.server_args.debug_tensor_dump_output_folder is not None:
+        register_forward_hook_for_model(
+            self.model,
+            self.server_args.debug_tensor_dump_output_folder,
+            self.server_args.debug_tensor_dump_layers,
+            self.tp_size,
+            self.tp_rank,
+            self.pp_rank,
+        )
+```
+
+**What this does:**
+
+- Registers PyTorch forward hooks on every layer
+- During inference, saves intermediate activations to disk
+- Used for debugging numerical issues, TP/PP correctness
+
+**Example:**
+
+```python
+# Save layer 0 output
+hook_fn(module, input, output):
+    torch.save(output, f"layer_0_tp{tp_rank}_pp{pp_rank}.pt")
+```
+
+---
+
+#### RoPE Cache Pre-expansion
+
+```python
+    reserve_rope_cache_for_long_sequences(
+        self.model,
+        self.server_args,
+        self.model_config,
+        logger,
+    )
+```
+
+**RoPE (Rotary Position Embeddings):**
+
+Requires precomputed sin/cos values:
+
+```python
+# Positions 0 to max_seq_len
+pos = torch.arange(max_seq_len)
+
+# Frequencies
+freqs = 1.0 / (base ** (torch.arange(0, dim, 2) / dim))
+
+# Precompute sin/cos
+rope_cache = pos[:, None] * freqs[None, :]
+cos_cache = rope_cache.cos()
+sin_cache = rope_cache.sin()
+```
+
+**Why pre-expand?**
+
+1. **CUDA Graphs**: Graphs require static memory allocation
+2. **Lazy allocation**: PyTorch might allocate RoPE cache during first forward pass
+3. **Graph capture**: If allocation happens during capture, it fails
+
+Solution: Expand to `max_seq_len` before graph capture
+
+---
+
+#### Distributed Barrier
+
+```python
+    if self.server_args.elastic_ep_backend == "mooncake":
+        dist.barrier(group=get_tp_group().cpu_group)
+    else:
+        try:
+            dist.monitored_barrier(
+                group=get_tp_group().cpu_group,
+                timeout=datetime.timedelta(seconds=1800),  # 30 minutes
+                wait_all_ranks=True,
+            )
+        except RuntimeError:
+            raise ValueError(
+                f"TP rank {self.tp_rank} could finish the model loading, but "
+                "there are other ranks that didn't finish loading. "
+                "It is likely due to unexpected failures (e.g., OOM) or a slow node."
+            ) from None
+```
+
+**Why barrier?**
+
+- All TP ranks must finish loading before serving starts
+- If rank 0 finishes but rank 3 OOM crashes, barrier catches it
+- Without barrier, rank 0 would start serving with incomplete model → wrong results
+
+**Monitored barrier vs regular barrier:**
+
+- Regular: Waits indefinitely, hangs if one rank dies
+- Monitored: Timeout + error reporting, fails fast
+
+**Mooncake backend:**
+
+- Alibaba's custom distributed backend
+- Doesn't support monitored barriers (uses regular barrier)
+
+---
+
+### `DefaultModelLoader` Deep Dive
+
+This is where actual weight loading happens.
+
 ```python
 @dataclasses.dataclass
 class Source:
-    model_or_path: str          # Model ID or local path
-    revision: Optional[str]      # Git revision/tag
-    prefix: str = ""            # Prefix for weight names
-    fall_back_to_pt: bool       # Allow .pt files if .safetensors unavailable
-    model_config: ModelConfig   # Model configuration
+    """Represents a source of model weights."""
+    model_or_path: str              # HF model ID or local path
+    revision: Optional[str]         # Git revision/tag
+    prefix: str = ""                # Prefix for weight names
+    fall_back_to_pt: bool           # Allow .pt if .safetensors unavailable
+    model_config: ModelConfig       # Model architecture
 ```
-Represents a weight source (primary model or secondary weights like adapters).
 
----
-
-## **Main Loading Pipeline**
-
-### **Step 1: `_prepare_weights()` - File Discovery**
-**What it does:**
-- Downloads model from HuggingFace/ModelScope if not local
-- Detects file format (safetensors, .pt, mistral format, etc.)
-- Finds all weight files matching the format
-- Filters out duplicate/unnecessary files
-- Optionally verifies checksums
-
-**Supported formats:**
-- `AUTO`: Try safetensors first, fallback to .pt
-- `SAFETENSORS` / `FASTSAFETENSORS`: Use .safetensors only
-- `PT`: PyTorch .pt files
-- `MISTRAL`: Mistral's consolidated format
-- `NPCACHE`: NumPy cache format
-
-**Output:** `(hf_folder, hf_weights_files, use_safetensors)`
-
----
-
-### **Step 2: `_get_weights_iterator()` - Create Weight Stream**
-**What it does:**
-- Creates an iterator that yields `(weight_name, tensor)` pairs
-- Chooses iterator based on format and config:
-  - `safetensors_weights_iterator`: Standard safetensors loading
-  - `fastsafetensors_weights_iterator`: Optimized safetensors loading
-  - `multi_thread_safetensors_weights_iterator`: Parallel loading (8 threads default)
-  - `pt_weights_iterator`: PyTorch checkpoint loading
-  - `np_cache_weights_iterator`: NumPy cache format
-
-**Key features:**
-- Applies prefix to weight names (for multi-source models)
-- Handles MTP (Multi-Token Prediction) draft models by filtering layers
-- Supports multi-threaded loading for faster initialization
-
----
-
-### **Step 3: `_get_all_weights()` - Aggregate All Sources**
-**What it does:**
-- Loads primary model weights
-- Loads secondary weights (e.g., LoRA adapters, vision encoders)
-- Yields all `(name, tensor)` pairs in sequence
+**Multiple sources example:**
 
 ```python
-# Primary weights (main model)
-yield from self._get_weights_iterator(primary_weights)
+# Primary model
+primary_source = Source(
+    model_or_path="meta-llama/Llama-3-8B",
+    revision="main",
+    prefix="",
+)
 
-# Secondary weights (from model.secondary_weights attribute)
-for source in secondary_weights:
-    yield from self._get_weights_iterator(source)
-```
+# LoRA adapter
+lora_source = Source(
+    model_or_path="user/llama-3-8b-lora-math",
+    revision="main",
+    prefix="lora.",
+)
 
----
-
-### **Step 4: `load_model()` - Main Entry Point**
-**What it does:**
-
-**Standard path:**
-```python
-1. Set dtype context (fp16/bf16/fp32)
-2. Set device context (cuda:0, cuda:1, etc.)
-3. _initialize_model() → Create empty model structure
-4. _get_all_weights() → Get weight iterator
-5. model.load_weights(weights) → Fill parameters with actual values
-6. Post-process quantization methods
-7. Return model.eval()
-```
-
-**ModelOpt quantization path:**
-```python
-1. Load full HuggingFace model with accelerate
-2. Use device_map="auto" for multi-GPU distribution
-3. Apply quantization (handled separately)
-4. Return model.eval()
-```
-
----
-
-### **Step 5: `load_weights_and_postprocess()` - Weight Assignment**
-**What it does:**
-```python
-# 1. Load all weights into model
-model.load_weights(weights)
-# This calls each parameter's weight_loader() method
-# which handles TP/PP sharding
-
-# 2. Post-process quantization
-for module in model.named_modules():
-    if module has quant_method:
-        # Temporarily move to target device if CPU offloaded
-        quant_method.process_weights_after_loading(module)
-        # Examples: repack INT4, compute scales, etc.
-```
-
----
-
-## **Key Features**
-
-| Feature | Description |
-|---------|-------------|
-| **Multi-format support** | safetensors, PyTorch .pt, Mistral format, NumPy cache |
-| **Multi-threaded loading** | 8 threads by default with `enable_multithread_load=True` |
-| **Checksum verification** | Optional verification via `model_checksum` |
-| **ModelScope support** | Download from ModelScope hub if `SGLANG_USE_MODELSCOPE=True` |
-| **Duplicate filtering** | Removes redundant consolidated files |
-| **MTP draft models** | Loads specific draft model layers |
-| **Secondary weights** | Supports multi-source models (adapters, vision encoders) |
-| **Memory-mapped loading** | Efficient loading without copying to RAM |
-| **Quantization post-processing** | Repacks weights after loading for quant methods |
-
----
-
-## **Weight Loading Flow Diagram**
-
-```
-DefaultModelLoader.load_model()
-    ↓
-_initialize_model() → Empty model structure created
-    ↓                 (Parameters allocated but random)
-_prepare_weights() → Find weight files on disk/HF
-    ↓
-_get_weights_iterator() → Stream (name, tensor) pairs
-    ↓
-_get_all_weights() → Primary + secondary sources
-    ↓
-model.load_weights(weights)
-    ↓
-For each (name, tensor):
-    ├─ Find matching parameter in model
-    ├─ Call param.weight_loader(tensor)
-    │   ↓
-    │   ├─ Extract TP shard: tensor[start:end]
-    │   ├─ Move to GPU: shard.to(device)
-    │   └─ Copy into param: param.data.copy_(shard)
-    └─ Next weight
-    ↓
-load_weights_and_postprocess()
-    ↓
-For each module with quant_method:
-    └─ quant_method.process_weights_after_loading()
-        (Repack, compute scales, etc.)
-    ↓
-Return model.eval()
-```
-
----
-
-## **Critical Details**
-
-1. **Weights are streamed, not loaded all at once**: Reduces CPU RAM usage
-2. **Each TP rank only loads its slice**: Happens in `param.weight_loader()`
-3. **PP ranks skip layers they don't own**: Filtered during `_initialize_model()`
-4. **Multi-threaded loading**: Multiple files loaded in parallel, significant speedup
-5. **Post-quantization processing**: Some methods need full weights on device before repacking
-6. **CPU offloading support**: Temporarily moves weights to GPU for processing, then back to CPU
-
----
-
-## **Example Usage**
-
-```python
-loader = DefaultModelLoader(load_config)
-
-# Download only (doesn't load into model)
-loader.download_model(model_config)
-
-# Full load
-model = loader.load_model(
-    model_config=model_config,
-    device_config=DeviceConfig("cuda", 0)
+# Vision encoder (for multimodal models)
+vision_source = Source(
+    model_or_path="openai/clip-vit-large-patch14",
+    revision="main",
+    prefix="vision.",
 )
 ```
 
-This loader is the workhorse that bridges the gap between checkpoint files on disk and the distributed model structure with proper TP/PP sharding!
+---
+
+#### Step 1: `_prepare_weights()` - File Discovery
+
+```python
+def _prepare_weights(
+    self,
+    model_name_or_path: str,
+    revision: Optional[str],
+    fall_back_to_pt: bool,
+) -> Tuple[str, List[str], bool]:
+    """
+    Download model if needed, find weight files.
+    
+    Returns:
+        hf_folder: Local path to model directory
+        hf_weights_files: List of weight file paths
+        use_safetensors: Whether using safetensors format
+    """
+```
+
+**Download logic:**
+
+```python
+    # Check if local path or HF model ID
+    is_local = os.path.isdir(model_name_or_path)
+    
+    if not is_local:
+        # Download from HuggingFace Hub
+        if get_bool_env_var("SGLANG_USE_MODELSCOPE"):
+            # Use ModelScope (Alibaba's model hub)
+            from modelscope.hub.snapshot_download import snapshot_download
+            hf_folder = snapshot_download(
+                model_id=model_name_or_path,
+                revision=revision,
+                cache_dir=self.load_config.download_dir,
+            )
+        else:
+            # Use HuggingFace Hub
+            hf_folder = snapshot_download(
+                repo_id=model_name_or_path,
+                revision=revision,
+                cache_dir=self.load_config.download_dir,
+                allow_patterns=["*.safetensors", "*.bin", "*.pt", "*.json"],
+            )
+    else:
+        hf_folder = model_name_or_path
+```
+
+**File format detection:**
+
+```python
+    use_safetensors = False
+    
+    # Check for safetensors files
+    safetensors_files = glob.glob(os.path.join(hf_folder, "*.safetensors"))
+    
+    if safetensors_files:
+        use_safetensors = True
+        hf_weights_files = safetensors_files
+    elif fall_back_to_pt:
+        # Fallback to PyTorch files
+        pt_files = glob.glob(os.path.join(hf_folder, "*.pt"))
+        bin_files = glob.glob(os.path.join(hf_folder, "*.bin"))
+        hf_weights_files = pt_files + bin_files
+    else:
+        raise ValueError("No weight files found!")
+```
+
+**Deduplication:**
+
+```python
+    # Remove consolidated files if sharded files exist
+    # Example: model.safetensors vs model-00001-of-00005.safetensors
+    
+    if any("-" in f for f in hf_weights_files):
+        # Has sharded files
+        hf_weights_files = [
+            f for f in hf_weights_files 
+            if "-" in f  # Keep only sharded files
+        ]
+```
+
+**Why deduplicate?**
+
+Some models have both:
+
+- `model.safetensors` (70GB, all weights in one file)
+- `model-00001-of-00005.safetensors` to `model-00005-of-00005.safetensors` (14GB each)
+
+Both contain the same weights, so only load one set!
+
+---
+
+#### Step 2: `_get_weights_iterator()` - Create Weight Stream
+
+```python
+def _get_weights_iterator(
+    self, source: Source
+) -> Iterator[Tuple[str, torch.Tensor]]:
+    """
+    Create an iterator that yields (weight_name, tensor) pairs.
+    """
+    
+    hf_folder, hf_weights_files, use_safetensors = self._prepare_weights(
+        source.model_or_path,
+        source.revision,
+        source.fall_back_to_pt,
+    )
+```
+
+**Choose iterator based on format:**
+
+```python
+    if use_safetensors:
+        if self.load_config.load_format == LoadFormat.FASTSAFETENSORS:
+            # Optimized safetensors (uses memory mapping)
+            weights_iter = fastsafetensors_weights_iterator(hf_weights_files)
+            
+        elif self.server_args.enable_multithread_load:
+            # Multi-threaded loading (8 threads default)
+            weights_iter = multi_thread_safetensors_weights_iterator(
+                hf_weights_files,
+                num_threads=8,
+            )
+            
+        else:
+            # Single-threaded safetensors
+            weights_iter = safetensors_weights_iterator(hf_weights_files)
+    else:
+        # PyTorch checkpoint
+        weights_iter = pt_weights_iterator(hf_weights_files)
+```
+
+**Add prefix if needed:**
+
+```python
+    if source.prefix:
+        weights_iter = (
+            (source.prefix + name, tensor)
+            for name, tensor in weights_iter
+        )
+```
+
+**Filter for MTP draft models:**
+
+```python
+    if self.load_config.draft_model_idx is not None:
+        # Multi-token prediction uses multiple draft models
+        # Each draft model only needs specific layers
+        
+        weights_iter = (
+            (name, tensor)
+            for name, tensor in weights_iter
+            if f"draft_models.{self.load_config.draft_model_idx}" in name
+        )
+```
+
+---
+
+#### Weight Iterator Implementations
+
+**Safetensors iterator:**
+
+```python
+def safetensors_weights_iterator(
+    files: List[str]
+) -> Iterator[Tuple[str, torch.Tensor]]:
+    """
+    Load weights from safetensors files.
+    Uses memory mapping for efficiency.
+    """
+    for file in files:
+        with safe_open(file, framework="pt", device="cpu") as f:
+            for name in f.keys():
+                tensor = f.get_tensor(name)
+                yield (name, tensor)
+```
+
+**Fast safetensors iterator:**
+
+```python
+def fastsafetensors_weights_iterator(
+    files: List[str]
+) -> Iterator[Tuple[str, torch.Tensor]]:
+    """
+    Optimized safetensors loading.
+    Uses mmap and avoids unnecessary copies.
+    """
+    for file in files:
+        # Memory-map the file
+        with open(file, "rb") as f:
+            data = mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ)
+            
+        # Parse safetensors header
+        header_size = int.from_bytes(data[:8], "little")
+        header = json.loads(data[8:8+header_size])
+        
+        # Yield tensors (zero-copy via mmap)
+        for name, info in header.items():
+            if name == "__metadata__":
+                continue
+                
+            offset = info["data_offsets"][0] + 8 + header_size
+            shape = info["shape"]
+            dtype = DTYPE_MAP[info["dtype"]]
+            
+            # Create tensor view (no copy)
+            tensor = torch.frombuffer(
+                data, 
+                dtype=dtype, 
+                count=np.prod(shape), 
+                offset=offset
+            ).reshape(shape)
+            
+            yield (name, tensor)
+```
+
+**Multi-threaded iterator:**
+
+```python
+def multi_thread_safetensors_weights_iterator(
+    files: List[str],
+    num_threads: int = 8,
+) -> Iterator[Tuple[str, torch.Tensor]]:
+    """
+    Load multiple files in parallel using ThreadPoolExecutor.
+    Significantly faster for models with many files.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    
+    def load_file(file):
+        weights = []
+        with safe_open(file, framework="pt", device="cpu") as f:
+            for name in f.keys():
+                weights.append((name, f.get_tensor(name)))
+        return weights
+    
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        # Submit all files
+        futures = [executor.submit(load_file, f) for f in files]
+        
+        # Yield weights as they become available
+        for future in futures:
+            for name, tensor in future.result():
+                yield (name, tensor)
+```
+
+**Speedup comparison:**
+
+```
+Model: Llama-3-70B (with 19 safetensors files)
+
+Single-threaded: 180 seconds
+Multi-threaded (8 threads): 35 seconds
+
+5x speedup!
+```
+
+---
+
+#### Step 3: `_get_all_weights()` - Aggregate Sources
+
+```python
+def _get_all_weights(
+    self,
+    primary_weights: Source,
+    secondary_weights: Optional[List[Source]] = None,
+) -> Iterator[Tuple[str, torch.Tensor]]:
+    """
+    Combine weights from primary and secondary sources.
+    """
+    
+    # Load primary model weights
+    yield from self._get_weights_iterator(primary_weights)
+    
+    # Load secondary weights (LoRA, vision encoder, etc.)
+    if secondary_weights:
+        for source in secondary_weights:
+            yield from self._get_weights_iterator(source)
+```
+
+**Example with LoRA:**
+
+```python
+# Yields:
+("model.layers.0.self_attn.q_proj.weight", tensor_q)
+("model.layers.0.self_attn.k_proj.weight", tensor_k)
+...
+("lora.model.layers.0.self_attn.q_proj.lora_A", tensor_lora_a)
+("lora.model.layers.0.self_attn.q_proj.lora_B", tensor_lora_b)
+```
+
+---
+
+#### Step 4: `load_model()` - Main Entry Point
+
+```python
+def load_model(
+    self,
+    *,
+    model_config: ModelConfig,
+    device_config: DeviceConfig,
+) -> nn.Module:
+    """
+    Load model with weights.
+    
+    Returns:
+        Initialized PyTorch model ready for inference.
+    """
+    
+    # Set device and dtype contexts
+    target_device = torch.device(device_config.device)
+    
+    with set_default_torch_dtype(model_config.dtype):
+        with torch.device(target_device):
+            # Create empty model structure
+            model = self._initialize_model(model_config, device_config)
+    
+    # Get weight iterator
+    weights = self._get_all_weights(
+        primary_weights=Source(
+            model_or_path=self.load_config.model_or_path,
+            ...
+        ),
+        secondary_weights=model_config.secondary_weights,
+    )
+    
+    # Load weights and post-process
+    load_weights_and_postprocess(
+        model=model,
+        weights=weights,
+        device_config=device_config,
+    )
+    
+    return model.eval()
+```
+
+---
+
+#### `_initialize_model()` - Create Empty Model
+
+```python
+def _initialize_model(
+    self,
+    model_config: ModelConfig,
+    device_config: DeviceConfig,
+) -> nn.Module:
+    """
+    Create model structure without loading weights.
+    Parameters are initialized with random values.
+    """
+    
+    # Import model class
+    model_class = get_model_class(model_config.hf_config.architectures[0])
+    
+    # Example: LlamaForCausalLM
+    
+    # Create model
+    with torch.device(device_config.device):
+        model = model_class(
+            config=model_config.hf_config,
+            linear_method=get_linear_method(model_config.quantization),
+            tp_rank=self.load_config.tp_rank,
+            tp_size=model_config.tp_size,
+            pp_rank=model_config.pp_rank,
+            pp_size=model_config.pp_size,
+        )
+    
+    return model
+```
+
+**What happens inside model creation:**
+
+```python
+class LlamaForCausalLM(nn.Module):
+    def __init__(self, config, linear_method, tp_rank, tp_size, ...):
+        super().__init__()
+        
+        # Embedding layer
+        self.embed_tokens = VocabParallelEmbedding(
+            num_embeddings=config.vocab_size,
+            embedding_dim=config.hidden_size,
+            tp_rank=tp_rank,
+            tp_size=tp_size,
+        )
+        
+        # Transformer layers
+        self.layers = nn.ModuleList([
+            LlamaDecoderLayer(
+                config=config,
+                linear_method=linear_method,
+                layer_idx=i,
+                tp_rank=tp_rank,
+                tp_size=tp_size,
+            )
+            for i in range(config.num_hidden_layers)
+            if self._should_include_layer(i, pp_rank, pp_size)
+        ])
+        
+        # Output layer
+        self.lm_head = ColumnParallelLinear(
+            input_size=config.hidden_size,
+            output_size=config.vocab_size,
+            bias=False,
+            linear_method=linear_method,
+            tp_rank=tp_rank,
+            tp_size=tp_size,
+        )
+```
+
+**TP Sharding during initialization:**
+
+```python
+class VocabParallelEmbedding(nn.Module):
+    """
+    Embedding layer sharded across TP ranks.
+    
+    Example: vocab_size=32000, tp_size=4
+    Rank 0: embeddings[0:8000]
+    Rank 1: embeddings[8000:16000]
+    Rank 2: embeddings[16000:24000]
+    Rank 3: embeddings[24000:32000]
+    """
+    
+    def __init__(self, num_embeddings, embedding_dim, tp_rank, tp_size):
+        super().__init__()
+        
+        self.num_embeddings = num_embeddings
+        self.embedding_dim = embedding_dim
+        self.tp_rank = tp_rank
+        self.tp_size = tp_size
+        
+        # Calculate this rank's slice
+        vocab_start_index = tp_rank * num_embeddings // tp_size
+        vocab_end_index = (tp_rank + 1) * num_embeddings // tp_size
+        self.num_embeddings_per_partition = vocab_end_index - vocab_start_index
+        
+        # Create parameter (random init)
+        self.weight = nn.Parameter(
+            torch.empty(
+                self.num_embeddings_per_partition,
+                self.embedding_dim,
+            )
+        )
+```
+
+**PP Filtering:**
+
+```python
+def _should_include_layer(self, layer_idx, pp_rank, pp_size):
+    """
+    Determine if this layer belongs to this PP rank.
+    
+    Example: 32 layers, pp_size=4
+    PP0: layers 0-7
+    PP1: layers 8-15
+    PP2: layers 16-23
+    PP3: layers 24-31
+    """
+    layers_per_rank = self.config.num_hidden_layers // pp_size
+    start_layer = pp_rank * layers_per_rank
+    end_layer = (pp_rank + 1) * layers_per_rank
+    
+    return start_layer <= layer_idx < end_layer
+```
+
+---
+
+#### `load_weights_and_postprocess()` - Weight Assignment
+
+```python
+def load_weights_and_postprocess(
+    model: nn.Module,
+    weights: Iterator[Tuple[str, torch.Tensor]],
+    device_config: DeviceConfig,
+):
+    """
+    Load weights into model and apply post-processing.
+    """
+    
+    # Load weights
+    model.load_weights(weights)
+    
+    # Post-process quantization methods
+    for module_name, module in model.named_modules():
+        if hasattr(module, "quant_method"):
+            quant_method = module.quant_method
+            
+            # Some quantization methods need post-processing
+            # Example: Repacking INT4 weights, computing scales
+            if hasattr(quant_method, "process_weights_after_loading"):
+                # Temporarily move to target device if CPU offloaded
+                original_device = next(module.parameters()).device
+                
+                if original_device.type == "cpu":
+                    module.to(device_config.device)
+                
+                quant_method.process_weights_after_loading(module)
+                
+                if original_device.type == "cpu":
+                    module.to(original_device)
+```
+
+**`model.load_weights()` implementation:**
+
+```python
+def load_weights(self, weights_iterator: Iterator):
+    """
+    Load weights into model parameters.
+    """
+    
+    # Build parameter name → parameter mapping
+    params_dict = dict(self.named_parameters())
+    
+    for name, loaded_weight in weights_iterator:
+        # Handle name mismatches (e.g., HF vs SGLang naming)
+        param_name = self._convert_name(name)
+        
+        if param_name not in params_dict:
+            # Skip if this parameter not in model (e.g., wrong PP rank)
+            continue
+        
+        param = params_dict[param_name]
+        
+        # Call parameter's weight loader
+        # This handles TP sharding
+        weight_loader = getattr(param, "weight_loader", default_weight_loader)
+        weight_loader(param, loaded_weight)
+```
+
+**Default weight loader (with TP sharding):**
+
+```python
+def default_weight_loader(
+    param: nn.Parameter,
+    loaded_weight: torch.Tensor,
+):
+    """
+    Load weight with TP sharding.
+    """
+    
+    # Get TP shard info from parameter
+    tp_rank = getattr(param, "tp_rank", 0)
+    tp_size = getattr(param, "tp_size", 1)
+    tp_dim = getattr(param, "tp_dim", None)
+    
+    if tp_size == 1:
+        # No TP, load entire weight
+        param.data.copy_(loaded_weight)
+    else:
+        # Calculate this rank's slice
+        shard_size = loaded_weight.size(tp_dim) // tp_size
+        start_idx = tp_rank * shard_size
+        end_idx = (tp_rank + 1) * shard_size
+        
+        # Extract shard
+        if tp_dim == 0:
+            shard = loaded_weight[start_idx:end_idx]
+        elif tp_dim == 1:
+            shard = loaded_weight[:, start_idx:end_idx]
+        else:
+            raise ValueError(f"Unsupported tp_dim: {tp_dim}")
+        
+        # Move to GPU and copy into parameter
+        param.data.copy_(shard.to(param.device))
+```
+
+**Example weight loading:**
+
+```
+Model: Llama-3-8B with TP=4
+
+Parameter: model.layers.0.self_attn.q_proj.weight
+Shape: [4096, 4096]
+TP dimension: 0 (split output dimension)
+
+Loaded weight shape: [4096, 4096]
+
+TP rank 0: Loads [0:1024, :] → param.data (shape [1024, 4096])
+TP rank 1: Loads [1024:2048, :] → param.data (shape [1024, 4096])
+TP rank 2: Loads [2048:3072, :] → param.data (shape [1024, 4096])
+TP rank 3: Loads [3072:4096, :] → param.data (shape [1024, 4096])
+```
+
+---
+
+#### Quantization Post-Processing
+
+**Example: INT4 weight packing (GPTQ/AWQ)**
+
+```python
+class GPTQLinearMethod:
+    def process_weights_after_loading(self, module):
+        """
+        Repack weights from INT32 to packed INT4.
+        """
+        
+        # Original: INT4 weights stored as INT32 (wasteful)
+        # [out_features, in_features // 8] INT32
+        # Each INT32 holds 8 INT4 values
+        
+        qweight = module.qweight.data
+        
+        # Repack to actual INT4 storage (custom CUDA kernel)
+        packed_qweight = pack_int4_weights(qweight)
+        
+        # Replace parameter
+        module.qweight = nn.Parameter(packed_qweight, requires_grad=False)
+        
+        # Compute scales if needed
+        if not hasattr(module, "scales"):
+            module.scales = self.compute_scales(module.qweight, module.qzeros)
+```
+
+**Why post-process?**
+
+- Checkpoint files store weights in "easy to load" format
+- Runtime wants weights in "fast to compute" format
+- Post-processing converts between them
+
+---
+
+## Parallelism Strategies
+
+### Tensor Parallelism (TP)
+
+**What it splits:** Model layers horizontally across GPUs
+
+**How it works:**
+
+```
+Single GPU:
+┌─────────────────────────────┐
+│  Embedding [32k × 4096]     │
+│  Layer 0:                   │
+│    Q proj [4096 × 4096]     │
+│    K proj [4096 × 4096]     │
+│    V proj [4096 × 4096]     │
+│    O proj [4096 × 4096]     │
+│    Gate proj [4096 × 11008] │
+│    Up proj [4096 × 11008]   │
+│    Down proj [11008 × 4096] │
+│  ...                        │
+│  Layer 31                   │
+│  LM Head [4096 × 32k]       │
+└─────────────────────────────┘
+
+TP=4:
+GPU 0                GPU 1                GPU 2                GPU 3
+┌────────────────┐  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐
+│ Embed[8k×4096] │  │ Embed[8k×4096] │  │ Embed[8k×4096] │  │ Embed[8k×4096] │
+│ Q[1024×4096]   │  │ Q[1024×4096]   │  │ Q[1024×4096]   │  │ Q[1024×4096]   │
+│ K[1024×4096]   │  │ K[1024×4096]   │  │ K[1024×4096]   │  │ K[1024×4096]   │
+│ V[1024×4096]   │  │ V[1024×4096]   │  │ V[1024×4096]   │  │ V[1024×4096]   │
+│ O[4096×1024]   │  │ O[4096×1024]   │  │ O[4096×1024]   │  │ O[4096×1024]   │
+│ Gate[4096×2752]│  │ Gate[4096×2752]│  │ Gate[4096×2752]│  │ Gate[4096×2752]│
+│ Up[4096×2752]  │  │ Up[4096×2752]  │  │ Up[4096×2752]  │  │ Up[4096×2752]  │
+│ Down[2752×4096]│  │ Down[2752×4096]│  │ Down[2752×4096]│  │ Down[2752×4096]│
+│ ...            │  │ ...            │  │ ...            │  │ ...            │
+│ LM[4096×8k]    │  │ LM[4096×8k]    │  │ LM[4096×8k]    │  │ LM[4096×8k]    │
+└────────────────┘  └────────────────┘  └────────────────┘  └────────────────┘
+```
+
+**Communication pattern:**
+
+```python
+# Column-parallel (split output dimension)
+# Example: Q projection
+
+# Input: [batch, seq, 4096] (replicated on all ranks)
+# Weight: [4096, 1024] per rank (total [4096, 4096])
+# Output: [batch, seq, 1024] per rank
+
+# Each rank computes its slice
+local_output = F.linear(input, local_weight)  # [batch, seq, 1024]
+
+# No communication needed! (splits are independent)
+
+
+# Row-parallel (split input dimension)
+# Example: O projection
+
+# Input: [batch, seq, 1024] per rank (different on each rank!)
+# Weight: [1024, 4096] per rank (total [4096, 4096])
+# Output: [batch, seq, 4096] (needs to be same on all ranks)
+
+# Each rank computes partial result
+local_output = F.linear(local_input, local_weight)  # [batch, seq, 4096]
+
+# All-reduce to sum across ranks
+output = dist.all_reduce(local_output, op=dist.ReduceOp.SUM)
+```
+
+**TP Benefits:**
+
+- Splits large layers across GPUs
+- Reduces memory per GPU
+- Parallelizes computation
+
+**TP Costs:**
+
+- All-reduce communication (but overlapped with compute)
+- Requires fast interconnect (NVLink, InfiniBand)
+
+---
+
+### Pipeline Parallelism (PP)
+
+**What it splits:** Model layers vertically across GPUs
+
+```
+PP=4:
+
+GPU 0 (PP rank 0):
+┌─────────────────┐
+│ Embedding       │
+│ Layers 0-7      │
+└─────────────────┘
+        ↓ activations
+GPU 1 (PP rank 1):
+┌─────────────────┐
+│ Layers 8-15     │
+└─────────────────┘
+        ↓ activations
+GPU 2 (PP rank 2):
+┌─────────────────┐
+│ Layers 16-23    │
+└─────────────────┘
+        ↓ activations
+GPU 3 (PP rank 3):
+┌─────────────────┐
+│ Layers 24-31    │
+│ LM Head         │
+└─────────────────┘
+```
+
+**Micro-batching for efficiency:**
+
+```
+Naive PP (sequential):
+Time: |GPU0|    |GPU1|    |GPU2|    |GPU3|
+      [====]    [====]    [====]    [====]
+                ^^^^ GPUs idle ^^^^
+
+PP with micro-batching:
+Batch split into 4 micro-batches: [A, B, C, D]
+
+Time: GPU0    GPU1    GPU2    GPU3
+      [A  ]   
+      [B  ]   [A  ]   
+      [C  ]   [B  ]   [A  ]   
+      [D  ]   [C  ]   [B  ]   [A  ]
+              [D  ]   [C  ]   [B  ]
+                      [D  ]   [C  ]
+                              [D  ]
+                              
+Much better GPU utilization!
+```
+
+**PP Benefits:**
+
+- Fits very large models (each GPU only holds ~1/4 of layers)
+- Less communication than TP (only activations, not gradients)
+
+**PP Costs:**
+
+- Pipeline bubbles (idle time)
+- Requires large batch sizes for efficiency
+- More complex scheduling
+
+---
+
+### Data Parallelism (DP)
+
+**What it splits:** Different requests to different model replicas
+
+```
+DP=3:
+
+Replica 0:         Replica 1:         Replica 2:
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│ Full Model  │    │ Full Model  │    │ Full Model  │
+│             │    │             │    │             │
+│ Request A   │    │ Request B   │    │ Request C   │
+└─────────────┘    └─────────────┘    └─────────────┘
+```
+
+**DP Benefits:**
+
+- Scales throughput linearly
+- No communication during inference
+- Simple to implement
+
+**DP Costs:**
+
+- Memory usage scales linearly (3 replicas = 3x memory)
+- Load balancing needed
+
+---
+
+### Expert Parallelism (EP) - for MoE models
+
+**What it splits:** Different experts across GPUs
+
+```
+MoE Layer (8 experts):
+
+EP=4:
+GPU 0: Experts 0-1
+GPU 1: Experts 2-3
+GPU 2: Experts 4-5
+GPU 3: Experts 6-7
+
+Forward pass:
+1. Router decides which experts to use for each token
+2. Tokens are routed to appropriate GPUs
+3. Experts compute
+4. Results are gathered back
+```
+
+**EP Communication:**
+
+```python
+# All-to-all exchange
+# Each GPU sends tokens to other GPUs based on routing
+
+tokens_to_send = {
+    0: [tokens routed to experts 0-1],
+    1: [tokens routed to experts 2-3],
+    2: [tokens routed to experts 4-5],
+    3: [tokens routed to experts 6-7],
+}
+
+tokens_to_compute = dist.all_to_all(tokens_to_send)
+
+# Compute
+expert_outputs = []
+for expert in local_experts:
+    expert_outputs.append(expert(tokens_to_compute[expert.id]))
+
+# All-to-all gather
+final_outputs = dist.all_to_all(expert_outputs)
+```
+
+---
+
+### Combined Parallelism Example
+
+**Configuration:** TP=4, PP=2, DP=2 (16 GPUs total)
+
+```
+Data Parallel Replica 0:          Data Parallel Replica 1:
+
+PP Stage 0:                       PP Stage 0:
+GPU 0  GPU 1  GPU 2  GPU 3        GPU 8  GPU 9  GPU 10 GPU 11
+[E   ] [E   ] [E   ] [E   ]       [E   ] [E   ] [E   ] [E   ]
+[L0-15] sharded with TP=4         [L0-15] sharded with TP=4
+        ↓                                  ↓
+PP Stage 1:                       PP Stage 1:
+GPU 4  GPU 5  GPU 6  GPU 7        GPU 12 GPU 13 GPU 14 GPU 15
+[L16-31] sharded with TP=4        [L16-31] sharded with TP=4
+[LM  ] [LM  ] [LM  ] [LM  ]       [LM  ] [LM  ] [LM  ] [LM  ]
+```
+
+**Serving flow:**
+
+```
+Request A → Replica 0
+Request B → Replica 1
+
+Within each replica:
+1. PP stage 0 computes on all TP ranks in parallel
+2. Send activations to PP stage 1
+3. PP stage 1 computes on all TP ranks in parallel
+4. Return output
+```
+
+---
+
+## Memory Management
+
+### KV Cache
+
+**What is it?**
+
+During autoregressive generation:
+
+```
+Input: "The capital of France is"
+
+Step 1: Compute attention for "The capital of France is"
+- Store keys and values for all tokens
+
+Step 2: Generate " Paris"
+- Reuse stored keys/values from step 1
+- Only compute new key/value for " Paris"
+
+Step 3: Generate " is"  
+- Reuse all previous keys/values
+- Only compute new key/value for " is"
+
+...
+```
+
+**Memory usage:**
+
+```python
+# Per request, per layer
+seq_len = 2048  # tokens
+num_heads = 32
+head_dim = 128
+dtype_size = 2  # bfloat16
+
+k_cache_size = seq_len * num_heads * head_dim * dtype_size
+v_cache_size = seq_len * num_heads * head_dim * dtype_size
+
+per_layer = (k_cache_size + v_cache_size) / (1024**2)  # MB
+= (2048 * 32 * 128 * 2 * 2) / (1024**2)
+= 33.5 MB per layer
+
+For 32 layers:
+= 33.5 * 32
+= 1.07 GB per request!
+
+For 100 concurrent requests:
+= 107 GB just for KV cache!
+```
+
+---
+
+### KV Cache Management Strategies
+
+#### 1. **PagedAttention (vLLM/SGLang)**
+
+```
+Traditional KV cache:
+Request A: [████████████________] (Allocated 2048, using 800)
+Request B: [████████████________] (Allocated 2048, using 800)
+           ^^^^^^^^^^^^           Only 60% utilized!
+
+PagedAttention:
+Memory pool divided into pages (e.g., 64 tokens each)
+
+Request A: [Page 0][Page 1][Page 2]...[Page 12]  (13 pages for 800 tokens)
+Request B: [Page 13][Page 14]...[Page 25]        (13 pages for 800 tokens)
+
+No fragmentation, ~95% utilization!
+```
+
+**Implementation:**
+
+```python
+class TokenToKVPoolAllocator:
+    def __init__(self, page_size=64, total_pages=10000):
+        self.page_size = page_size
+        self.free_pages = list(range(total_pages))
+        self.request_to_pages = {}
+    
+    def allocate(self, request_id, num_tokens):
+        num_pages = (num_tokens + self.page_size - 1) // self.page_size
+        pages = [self.free_pages.pop() for _ in range(num_pages)]
+        self.request_to_pages[request_id] = pages
+        return pages
+    
+    def free(self, request_id):
+        pages = self.request_to_pages.pop(request_id)
+        self.free_pages.extend(pages)
+```
+
+---
+
+#### 2. **RadixCache (Prefix Sharing)**
+
+```
+Request A: "Translate to French: Hello"
+Request B: "Translate to French: Goodbye"
+Request C: "Translate to French: How are you"
+
+Without prefix sharing:
+A: Compute "Translate to French: " + "Hello"
+B: Compute "Translate to French: " + "Goodbye"  ← Redundant!
+C: Compute "Translate to French: " + "How are you"  ← Redundant!
+
+With RadixCache:
+Shared prefix: "Translate to French: " (computed once)
+A: Reuse prefix + compute "Hello"
+B: Reuse prefix + compute "Goodbye"
+C: Reuse prefix + compute "How are you"
+```
+
+**Data structure:**
+
+```python
+class RadixCache:
+    """
+    Trie-based cache for KV values.
+    """
+    
+    class Node:
+        def __init__(self):
+            self.children = {}  # token → Node
+            self.kv_ptrs = None  # Pointer to KV cache pages
+            self.ref_count = 0
+    
+    def __init__(self):
+        self.root = self.Node()
+    
+    def match_prefix(self, token_ids):
+        """
+        Find longest matching prefix in cache.
+        
+        Returns:
+            matched_len: Number of tokens matched
+            node: Node representing the matched prefix
+        """
+        node = self.root
+        matched_len = 0
+        
+        for i, token_id in enumerate(token_ids):
+            if token_id in node.children:
+                node = node.children[token_id]
+                matched_len = i + 1
+            else:
+                break
+        
+        return matched_len, node
+    
+    def insert(self, token_ids, kv_ptrs):
+        """
+        Insert new sequence into cache.
+        """
+        node = self.root
+        
+        for token_id in token_ids:
+            if token_id not in node.children:
+                node.children[token_id] = self.Node()
+            node = node.children[token_id]
+        
+        node.kv_ptrs = kv_ptrs
+        node.ref_count += 1
+```
+
+---
+
+#### 3. **FP8 Quantization**
+
+Reduces KV cache memory by 50%:
+
+```python
+# Before: bfloat16
+k_cache = torch.randn(seq_len, num_heads, head_dim, dtype=torch.bfloat16)
+# 2 bytes per element
+
+# After: fp8_e4m3
+k_scale = compute_scale(k_cache)
+k_cache_fp8 = (k_cache * k_scale).to(torch.float8_e4m3fn)
+# 1 byte per element
+
+# Dequantize during attention
+k_cache_bf16 = k_cache_fp8.to(torch.bfloat16) / k_scale
+```
+
+---
+
+### Memory Profiling
+
+**Determining max batch size:**
+
+```python
+def profile_memory(model, server_args):
+    """
+    Profile GPU memory to determine max batch size.
+    """
+    
+    # Get total GPU memory
+    total_memory = torch.cuda.get_device_properties(0).total_memory
+    
+    # Memory already used by model weights
+    weight_memory = get_model_memory_usage(model)
+```
+# Reserve memory for:
+# - PyTorch allocator overhead
+# - NCCL buffers
+# - Temporary tensors
+reserved_memory = total_memory * 0.1  # 10% reserved
+
+# Available for KV cache + activations
+available_memory = total_memory - weight_memory - reserved_memory
+
+# Estimate memory per token
+memory_per_token = estimate_memory_per_token(model, server_args)
+
+# Max tokens in KV cache
+max_tokens = int(available_memory * server_args.mem_fraction_static / memory_per_token)
+
+# Max concurrent requests (assuming avg 512 tokens per request)
+max_requests = max_tokens // 512
+
+logger.info(
+    f"Total memory: {total_memory / 1e9:.2f} GB\n"
+    f"Weight memory: {weight_memory / 1e9:.2f} GB\n"
+    f"Available: {available_memory / 1e9:.2f} GB\n"
+    f"Max tokens: {max_tokens}\n"
+    f"Max requests: {max_requests}"
+)
+
+return max_tokens, max_requests
+```
+
+```
+
+---
+
+## Request Processing Flow
+
+### End-to-End Request Flow
+
+```
+
+1. Client sends request ↓
+2. FastAPI receives POST /v1/chat/completions ↓
+3. OpenAIServingChat.create_chat_completion() ├─ Validate request ├─ Apply chat template └─ Send to TokenizerManager ↓
+4. TokenizerManager.generate() ├─ Tokenize prompt ├─ Create GenerateReqInput └─ Send to Scheduler via ZMQ ↓
+5. Scheduler receives request ├─ Add to waiting queue └─ Event loop picks it up ↓
+6. Scheduler.schedule_batch() ├─ Select requests for batch ├─ Allocate KV cache ├─ Create ModelWorkerBatch └─ Call model_runner.forward() ↓
+7. ModelRunner.forward() ├─ Prepare inputs (input_ids, positions, etc.) ├─ Call model() └─ Return logits ↓
+8. Scheduler processes logits ├─ Sample next tokens ├─ Update KV cache pointers ├─ Check for EOS/max_len └─ Send output tokens to Detokenizer ↓
+9. Detokenizer receives tokens ├─ Convert token IDs → strings ├─ Handle streaming └─ Send to TokenizerManager ↓
+10. TokenizerManager receives strings ├─ Update response buffer └─ Yield to FastAPI ↓
+11. FastAPI streams response to client ├─ SSE (Server-Sent Events) format └─ data: {"choices": [{"delta": {"content": "Paris"}}]}
+
+````
+
+---
+
+### Request Structures
+
+**Client request (OpenAI format):**
+
+```json
+{
+  "model": "meta-llama/Llama-3-8B",
+  "messages": [
+    {"role": "user", "content": "What is the capital of France?"}
+  ],
+  "temperature": 0.7,
+  "max_tokens": 100,
+  "stream": true
+}
+````
+
+**Internal representation:**
+
+```python
+@dataclass
+class GenerateReqInput:
+    """Request sent to scheduler."""
+    
+    # Unique request ID
+    rid: str
+    
+    # Input token IDs
+    input_ids: List[int]
+    
+    # Sampling parameters
+    sampling_params: SamplingParams
+    
+    # Return logprobs, token usage, etc.
+    return_logprob: bool
+    logprob_start_len: int
+    top_logprobs_num: int
+    
+    # Stream response?
+    stream: bool
+    
+    # Other metadata
+    ...
+
+
+@dataclass
+class SamplingParams:
+    """Controls output generation."""
+    
+    # Randomness (0 = greedy, 1 = max randomness)
+    temperature: float = 1.0
+    
+    # Nucleus sampling
+    top_p: float = 1.0
+    
+    # Top-k sampling
+    top_k: int = -1  # -1 means disabled
+    
+    # Stop sequences
+    stop: Optional[List[str]] = None
+    
+    # Max output length
+    max_new_tokens: int = 16
+    
+    # Min output length
+    min_new_tokens: int = 0
+    
+    # Repetition penalty
+    presence_penalty: float = 0.0
+    frequency_penalty: float = 0.0
+    repetition_penalty: float = 1.0
+    
+    # Regex constraints
+    regex: Optional[str] = None
+    
+    # JSON mode
+    json_schema: Optional[Dict] = None
+```
+
+---
+
+### Batching and Scheduling
+
+**Continuous batching:**
+
+```
+Traditional batching (wait for batch to fill):
+Time 0: Request A arrives → wait
+Time 1: Request B arrives → wait
+Time 2: Request C arrives → wait
+Time 3: Request D arrives → START BATCH [A,B,C,D]
+Time 4: All requests finish together
+
+Problem: High latency for early requests!
+
+Continuous batching (SGLang/vLLM):
+Time 0: Request A arrives → START BATCH [A]
+Time 1: Request B arrives → ADD TO BATCH [A,B]
+Time 2: Request C arrives → ADD TO BATCH [A,B,C]
+Time 3: Request D arrives → ADD TO BATCH [A,B,C,D]
+Time 4: Request A finishes → REMOVE FROM BATCH [B,C,D]
+Time 5: Request E arrives → ADD TO BATCH [B,C,D,E]
+
+Much lower latency!
+```
+
+**Batch selection logic:**
+
+```python
+def schedule_batch(self, waiting_queue, running_requests):
+    """
+    Select requests for next batch.
+    """
+    
+    batch = []
+    total_tokens = 0
+    
+    # First, add running requests (already have KV cache)
+    for req in running_requests:
+        if self._can_add_to_batch(req, total_tokens):
+            batch.append(req)
+            total_tokens += req.num_tokens
+    
+    # Then, add new requests from waiting queue
+    while waiting_queue and total_tokens < self.max_batch_tokens:
+        req = waiting_queue[0]
+        
+        # Check if we have enough memory for this request
+        if not self._can_allocate_kv_cache(req):
+            break  # KV cache full, can't add more requests
+        
+        if self._can_add_to_batch(req, total_tokens):
+            waiting_queue.popleft()
+            
+            # Allocate KV cache
+            self._allocate_kv_cache(req)
+            
+            batch.append(req)
+            total_tokens += req.num_tokens
+        else:
+            break  # Batch full
+    
+    return batch
+
+
+def _can_add_to_batch(self, req, current_tokens):
+    """
+    Check if request can fit in batch.
+    """
+    
+    # Respect max batch size
+    if len(batch) >= self.max_batch_size:
+        return False
+    
+    # Respect max total tokens
+    if current_tokens + req.num_tokens > self.max_batch_tokens:
+        return False
+    
+    # For prefill requests, limit total prefill tokens
+    if req.is_prefill and current_tokens + req.input_len > self.max_prefill_tokens:
+        return False
+    
+    return True
+```
+
+---

@@ -93,7 +93,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 200
+    "width": 200,
+    "collapsed": true
   },
   "right": {
     "id": "df5449a757fb8bbe",
@@ -788,7 +789,7 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "b2a64a356ef8e934",
+  "active": "a0d882203c103598",
   "lastOpenFiles": [
     "CUDA/Section 1.md",
     "Codebase/SGLang/Server Launch.md",
