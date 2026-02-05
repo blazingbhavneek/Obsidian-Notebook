@@ -4,46 +4,39 @@
     "type": "split",
     "children": [
       {
-        "id": "b0159e8fde747fb8",
+        "id": "9801d0acd5e0da74",
         "type": "tabs",
-        "dimension": 62.040557667934095,
         "children": [
           {
-            "id": "a7049d3117cff6bb",
+            "id": "c3bde6922116d34a",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "AI/SGLang/SGLang PR - IBM Granite.md",
+                "file": "CUDA/Section 1.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "SGLang PR - IBM Granite"
+              "title": "Section 1"
             }
-          }
-        ]
-      },
-      {
-        "id": "822637e0639b37e8",
-        "type": "tabs",
-        "dimension": 37.959442332065905,
-        "children": [
+          },
           {
-            "id": "872c79cbc3e4364d",
+            "id": "b2a64a356ef8e934",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "AI/SGLang/SGLang PR - LFM2.md",
+                "file": "Codebase/SGLang/Server Launch.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "SGLang PR - LFM2"
+              "title": "Server Launch"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -737,6 +730,36 @@
             "state": {
               "type": "review-queue-list-view",
               "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "48de6435e061bf43",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "4e7613800761d503",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "SpacedRepIcon",
+              "title": "Notes Review Queue"
+            }
+          },
+          {
+            "id": "ea7dd2ec6cc5c8a6",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
               "icon": "SpacedRepIcon",
               "title": "Notes Review Queue"
             }
@@ -746,10 +769,12 @@
       }
     ],
     "direction": "horizontal",
-    "width": 297.5
+    "width": 200
   },
   "left-ribbon": {
     "hiddenItems": {
+      "obsidian-excalidraw-plugin:New drawing": false,
+      "code-files:Create Code File": false,
       "bases:Create new base": false,
       "switcher:Open quick switcher": false,
       "graph:Open graph view": false,
@@ -763,11 +788,14 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "a7049d3117cff6bb",
+  "active": "b2a64a356ef8e934",
   "lastOpenFiles": [
-    "AI/SGLang/SGLang PR - LFM2.md",
-    "AI/SGLang/SGLang PR - IBM Granite.md",
     "CUDA/Section 1.md",
+    "Codebase/SGLang/Server Launch.md",
+    "Codebase/SGLang",
+    "Codebase",
+    "AI/SGLang/SGLang PR - IBM Granite.md",
+    "AI/SGLang/SGLang PR - LFM2.md",
     "C++/learnCPP/Chapter 4.md",
     "C++/learnCPP/Chapter 2.md",
     "C++/learnCPP/Chapter 0.md",
@@ -797,7 +825,6 @@
     "Web Development/AI/Langchain/4. Tools, Agents and Executers.md",
     "Web Development/Backend/3. MongoDB Basics.md",
     "Web Development/Backend/1. Basics of Internet.md",
-    "Web Development/Frontend/Framer Motion/1. Overview.md",
     "images/Pasted image 20250623165801.png",
     "images/Pasted image 20250623112305.png",
     "images",
@@ -807,8 +834,6 @@
     "Japanese/N4",
     "Japanese",
     "Web Development/Untitled",
-    "Devops/Docker",
-    "Devops",
     "C++/Untitled.canvas",
     "C++/Untitled 1.canvas",
     "Untitled 1.canvas",

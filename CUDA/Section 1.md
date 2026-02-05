@@ -40,3 +40,9 @@
 			- Quadro: Professionals, engineers etc (RTX A4000, RTX AA6000)
 			- Tesla: For HPCs (A100, H100)
 	- techpowerup website to know specs of any gpu
+- Difference betweeen GPU chip and GPU
+	- The chip is the actual silicon core which contains cores 
+	- The GPU itself contains the chip, memory and peripheral interfaces
+- Architecture chips
+	- Each architectures have their series of chips that are used in diff generations of GPU
+	- GA series of chips are for ampere architecture
