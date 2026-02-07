@@ -491,6 +491,102 @@ pp_rank = 0, tp_rank = 3: gpu_id = 0 + 0 + 3 = 3
     - On dual-socket servers, GPUs 0-3 might be on NUMA node 0, GPUs 4-7 on NUMA node 1
     - Reduces memory access latency by 2-3x
 
+**NUMA = Non-Uniform Memory Access**
+It’s a memory architecture in multi-CPU (or multi-socket) systems where *not all memory is equally fast to access from all processors*. Each CPU (or group of cores) has *local memory* that it can reach with lower latency and higher bandwidth than *remote memory* that belongs to a different CPU/socket. This is what “non-uniform” means — access times depend on *where* the memory is physically relative to the processor. ([Wikipedia][1])
+
+**NUMA nodes (hardware)**
+
+* On a dual-socket server, you typically have 2 NUMA nodes — one per socket.
+* Each node contains a CPU and its DRAM.
+* Accessing that node’s memory is faster than accessing the other node’s memory. ([Wikipedia][1])
+
+**Why that matters for GPU + CPU**
+GPUs connect to the system via PCIe. On many servers, each GPU is *closer* to one NUMA node’s CPU and memory than to another’s. If a process that drives a GPU lives on a *different NUMA node* than the GPU, then:
+
+* CPU <-> GPU transfers may go through a longer interconnect path.
+* Memory allocations and CPU threads may access memory remotely.
+  Both slow down communication and reduce throughput. ([TECHCOMMUNITY.MICROSOFT.COM][2])
+
+**Process pinning to NUMA nodes**
+`numa_utils.configure_subprocess(...)` sets *CPU and memory affinity* so the process runs on the cores and memory banks *closest to the GPU’s NUMA node*. That improves locality — the process uses local memory and local CPU resources that are physically proximate to the GPU, reducing latency and boosting memory performance. ([Wikipedia][1])
+
+**Analogy**
+Imagine two rooms (NUMA nodes). Each room has its own snacks (memory). A host (CPU) in Room A can grab snacks in Room A quickly, but going to Room B to get snacks takes longer. If your event (process) is in Room B but fetching snacks from Room A, it wastes time. If you pin the event to Room A, serving is faster. ([Wikipedia][1])
+
+[1]: https://en.wikipedia.org/wiki/Non-uniform_memory_access?utm_source=chatgpt.com "Non-uniform memory access"
+[2]: https://techcommunity.microsoft.com/blog/azurehighperformancecomputingblog/optimizing-ai-workloads-on-azure-cpu-pinning-via-nccl-topology-file/4371810?utm_source=chatgpt.com "Optimizing AI Workloads on Azure: CPU Pinning via NCCL Topology file | Microsoft Community Hub"
+
+bind the worker processes to the CPU cores and DRAM memory that are physically closest to the GPU’s PCIe connection. This reduces cross-socket traffic and CPU ↔ GPU latency.
+
+Why that matters
+
+On multi-socket servers, each CPU socket has its own DRAM and its own PCIe controllers.
+
+A GPU plugged into PCIe slots tied to socket A will have faster access to memory and CPU cores on that socket than to resources on socket B, because remote access crosses the inter-CPU interconnect.
+
+If your process runs on the wrong NUMA node, GPU transfers and kernel launches have to traverse that interconnect, hurting throughput and latency.
+
+What the SGLang snippet does
+numa_utils.configure_subprocess(server_args, gpu_id) makes the process:
+
+Use CPU cores on the same NUMA node that owns the GPU’s PCIe root.
+
+Allocate memory from the DRAM attached to that node.
+
+That aligns CPU execution and memory with the GPU’s physical locality, minimizing remote memory accesses and PCIe bridging across sockets.
+
+**NUMA nodes are a _hardware architecture thing_** — not just arbitrary OS groups.
+
+- On multi-CPU/socket machines, each socket has its own **memory controllers + local DRAM banks** physically connected to that CPU (or a slice of a CPU die). Processors access their own local memory faster than memory that’s on another socket across the interconnect. That’s what “non-uniform” means. ([Wikipedia](https://en.wikipedia.org/wiki/Non-uniform_memory_access?utm_source=chatgpt.com "Non-uniform memory access"))
+    
+- The **hardware platform (CPU + motherboard + memory controllers)** defines NUMA topology. For example, a dual-socket server typically has 2 NUMA nodes — one per socket with its own DRAM. ([supermicro.com](https://www.supermicro.com/en/glossary/numa?utm_source=chatgpt.com "What Is Non-Uniform Memory Access (NUMA)? | Supermicro"))
+    
+- The **OS maps these hardware nodes into software NUMA nodes** so schedulers and memory allocators can optimize locality. Linux, Windows, etc., expose these to userland through APIs and tools (`numactl`, `lscpu`). ([Kernel.org](https://www.kernel.org/doc/html/latest/mm/numa.html?utm_source=chatgpt.com "What is NUMA? — The Linux Kernel documentation"))
+    
+
+So NUMA nodes are _physical groupings of CPU cores + DRAM on the machine_, and the OS gives logical identifiers so software can make placement decisions for CPU threads and memory. ([Kernel.org](https://www.kernel.org/doc/html/latest/mm/numa.html?utm_source=chatgpt.com "What is NUMA? — The Linux Kernel documentation"))
+
+**Who defines NUMA nodes?**
+◆ **Hardware defines them.** Modern server boards with more than one CPU socket (or CPUs with multiple memory controllers) physically group CPU cores and RAM into *local clusters*. Each cluster is a **NUMA node** — it’s built into how the motherboard/CPU memory controllers are wired. ([Kernel.org][1])
+
+**What exactly a NUMA node is (beginner terms)**
+
+* Think of a **CPU socket + its directly attached RAM** as a *room*. That room is a NUMA node. ([Kernel.org][1])
+* You can still use memory from another room, but it’s slower because you must cross hallways (chip interconnect) between rooms. ([Wikipedia][2])
+* All the memory is part of the system, but access times vary: local (fast) vs remote (slow). ([supermicro.com][3])
+
+**Where they live**
+
+* On physical servers with **multiple CPU sockets**, each socket + its RAM forms a separate NUMA node. ([Kernel.org][1])
+* Even within a single socket, some processors split memory into multiple NUMA units (so there can be more than one NUMA node per socket on newer hardware). ([Red Hat Customer Portal][4])
+* The **operating system exposes this hardware topology** to userspace apps and schedulers so they can optimize placement. ([Kernel.org][1])
+
+**Are nodes “free” until used?**
+
+* They’re *always there because of the hardware design.* They don’t run tasks by default. The OS and applications only **schedule work and allocate memory on a node when processes/threads arrive and request resources.** ([Kernel.org][1])
+* Until a process runs or memory is allocated, a node has no active workload, but it still owns its CPUs and memory banks. The OS knows about it and may assign threads/memory to it. ([Kernel.org][1])
+
+**Role of the OS**
+
+* The OS maps the hardware NUMA nodes into software abstractions (so apps can query/schedule by node). ([Kernel.org][1])
+* By default, memory allocations try to be local to the node that the thread runs on, but you can override that with NUMA APIs or tools. ([Intel][5])
+
+**So, simple summary**
+
+* NUMA nodes are physical groupings on the hardware (CPU socket + local memory). ([supermicro.com][3])
+* The OS exposes them so software can place processes/threads and memory near each other. ([Kernel.org][1])
+* They’re *not “created” by software* and they *don’t run tasks until the OS schedules something on them*. ([Kernel.org][1])
+
+[1]: https://www.kernel.org/doc/html/latest/mm/numa.html?utm_source=chatgpt.com "What is NUMA? — The Linux Kernel documentation"
+[2]: https://en.wikipedia.org/wiki/Non-uniform_memory_access?utm_source=chatgpt.com "Non-uniform memory access"
+[3]: https://www.supermicro.com/en/glossary/numa?utm_source=chatgpt.com "What Is Non-Uniform Memory Access (NUMA)? | Supermicro"
+[4]: https://access.redhat.com/sites/default/files/attachments/rhel7_numa_perf_brief.pdf?utm_source=chatgpt.com "RED HAT® ENTERPRISE LINUX® 7:"
+[5]: https://www.intel.com/content/www/us/en/developer/articles/technical/hardware-and-software-approach-for-using-numa-systems.html?utm_source=chatgpt.com "Hardware and Software Approach for Using NUMA Systems"
+
+
+
+
+
 ---
 
 #### Data Parallelism Mode
@@ -618,9 +714,10 @@ Makes debugging multi-process crashes much easier!
 - Accessing "far" memory is slower than "local" memory
 - Example topology:
     
-    ```
-    Socket 0: CPUs 0-31,  GPUs 0-3,  RAM Bank 0Socket 1: CPUs 32-63, GPUs 4-7,  RAM Bank 1
-    ```
+```
+Socket 0: CPUs 0-31,  GPUs 0-3,  RAM Bank 0
+Socket 1: CPUs 32-63, GPUs 4-7,  RAM Bank 1
+```
     
 - Binding GPU 2 to NUMA node 0 ensures fast memory access
 
@@ -744,14 +841,14 @@ Makes debugging multi-process crashes much easier!
 
 **Event loop variants explained:**
 
-|Mode|Description|Use Case|
-|---|---|---|
-|**normal**|Single-threaded, sequential batching|Simplest, good for debugging|
-|**overlap**|Overlaps compute & communication|10-20% better throughput|
-|**pp**|Pipeline parallelism micro-batching|Large models split across GPUs|
-|**pdmux**|Multiplexed prefill/decode|Separate batches for prefill & decode|
-|**disagg_prefill**|Prefill-only instance|Disaggregated serving architecture|
-|**disagg_decode**|Decode-only instance|Disaggregated serving architecture|
+| Mode               | Description                          | Use Case                              |
+| ------------------ | ------------------------------------ | ------------------------------------- |
+| **normal**         | Single-threaded, sequential batching | Simplest, good for debugging          |
+| **overlap**        | Overlaps compute & communication     | 10-20% better throughput              |
+| **pp**             | Pipeline parallelism micro-batching  | Large models split across GPUs        |
+| **pdmux**          | Multiplexed prefill/decode           | Separate batches for prefill & decode |
+| **disagg_prefill** | Prefill-only instance                | Disaggregated serving architecture    |
+| **disagg_decode**  | Decode-only instance                 | Disaggregated serving architecture    |
 
 **Disaggregated serving:**
 
@@ -760,6 +857,40 @@ Makes debugging multi-process crashes much easier!
 - Running them on separate instances allows different tuning:
     - Prefill: Large batch size, high compute utilization
     - Decode: Small batch size, low latency
+
+**Yes — you can separate prefill and decode across different workers/GPU instances.** It doesn’t mean *one request must stay on a single GPU* all the time. There’s a pattern called **prefill-decode disaggregation** where the work for those phases is decoupled and potentially run on separate processes or machines. ([vLLM][1])
+
+**Why that works (key idea)**
+LLM inference has two distinct phases:
+
+* **Prefill:** processes the entire prompt and builds the KV cache (big matrix work).
+* **Decode:** generates tokens one at a time using the previously created KV cache. ([fltech - 富士通研究所の技術ブログ][2])
+
+These phases have **very different resource profiles** — prefill is *compute-bound*, decode is *memory-bound*. Because of that mismatch, you can **specialize different worker instances** for each phase and scale them independently instead of doing both in one process. ([Ray][3])
+
+**How separation actually happens**
+
+1. The **prefill instance** (or process) runs the prompt, computes the KV cache, and produces the first token. ([vLLM][1])
+2. The **decode instance** gets the generated KV cache (via a connector like NIXL or a shared KV service) and continues generating further tokens for the same request. ([vLLM][1])
+3. A router or proxy coordinates which instance handles which phase and transfers the KV cache between them by messaging or shared memory. ([Ray][3])
+
+So the request *state* (especially the KV cache) moves between the prefill and decode workers. The actual heavy compute for the prompt and the subsequent decode token generation no longer need to live in one process/GPU if the system manages the state transfer. ([vLLM][1])
+
+**Benefits of disaggregation**
+
+* You can **tune parallelism separately** for prefill vs decode based on different bottlenecks. ([vllm.website.cncfstack.com][4])
+* You can **scale more decode workers** when lots of generation is happening while prefill is short. ([Ray][3])
+* You can control latency characteristics like time-to-first-token vs inter-token latency. ([vllm.website.cncfstack.com][4])
+
+**So the short answer to your question**
+
+> *Doesn’t each request need prefill and decode on the same GPU?*
+> Not necessarily. You can **split them** and *transfer the intermediate KV cache state* from prefill to decode workers. It means the same high-level request is handled in stages across different workers, but the logic ensures continuity by moving the KV cache between them. ([vLLM][1])
+
+[1]: https://docs.vllm.ai/en/stable/serving/expert_parallel_deployment.html?utm_source=chatgpt.com "Expert Parallel Deployment - vLLM"
+[2]: https://blog.fltech.dev/entry/2026/01/28/llminference_modeling?utm_source=chatgpt.com "LLM推論性能モデリング - fltech - 富士通研究所の技術ブログ"
+[3]: https://docs.ray.io/en/latest/serve/llm/architecture/serving-patterns/prefill-decode.html?utm_source=chatgpt.com "Prefill-decode disaggregation — Ray 2.53.0"
+[4]: https://vllm.website.cncfstack.com/features/disagg_prefill/?utm_source=chatgpt.com "vLLM"
 
 ---
 
@@ -1029,18 +1160,70 @@ def load_model(self):
 
 **NVIDIA GPU Compute Capabilities:**
 
-|Arch|SM|GPUs|bfloat16 Support|
-|---|---|---|---|
-|Turing|75|RTX 20xx, T4|❌|
-|Ampere|80|A100, RTX 30xx|✅|
-|Ada Lovelace|89|RTX 40xx, L40|✅|
-|Hopper|90|H100, H200|✅|
+| Arch         | SM  | GPUs           | bfloat16 Support |
+| ------------ | --- | -------------- | ---------------- |
+| Turing       | 75  | RTX 20xx, T4   | ❌                |
+| Ampere       | 80  | A100, RTX 30xx | ✅                |
+| Ada Lovelace | 89  | RTX 40xx, L40  | ✅                |
+| Hopper       | 90  | H100, H200     | ✅                |
 
 **Why bfloat16 matters:**
 
 - Same range as float32 (8 exponent bits)
 - Better for training/inference than float16 (less likely to overflow)
 - Natively supported on modern GPUs (faster than float16 on Ampere+)
+
+Here’s a **clear table of common LLM quant formats** and their differences (precision, memory, quality, method):
+
+| Format                         | Type                      | Bits per value | Memory ≈      | What it is                                     | Typical trade-off                                                        |
+| ------------------------------ | ------------------------- | -------------: | ------------- | ---------------------------------------------- | ------------------------------------------------------------------------ |
+| **FP32**                       | Floating point            |             32 | 1× (baseline) | Full precision floats; highest accuracy        | Slowest, largest memory                                                  |
+| **BF16**                       | Floating point            |             16 | ~0.5×         | Brain-Float16; same exponent range as FP32     | Good quality, training/serving baseline (vLLM/SGLang) ([lafzusa.com][1]) |
+| **FP16**                       | Floating point            |             16 | ~0.5×         | IEEE half precision                            | Similar to BF16 in size; smaller range than BF16 ([Medium][2])           |
+| **FP8**                        | Floating point            |              8 | ~0.25×        | Low-precision floating point (e.g., E4M3/E5M2) | Lower memory, good range; needs hardware support ([nvidia.github.io][3]) |
+| **INT8**                       | Integer                   |              8 | ~0.25×        | 8-bit integers for weights/activations         | Minimal quality loss, strong memory + speed win ([BentoML][4])           |
+| **INT4**                       | Integer                   |              4 | ~0.125×       | 4-bit integer quantization                     | Very high memory reduction, some quality drop ([lafzusa.com][1])         |
+| **NF4**                        | Integer with distribution |              4 | ~0.125×       | NormalFloat 4 (bitsandbytes)                   | Better accuracy than naive INT4 ([lafzusa.com][1])                       |
+| **INT2**                       | Integer                   |              2 | ~0.0625×      | Extreme 2-bit                                  | Large compression; experimental/quality fragile ([lafzusa.com][1])       |
+| **FP4 / mixed low-bit floats** | Floating point            |              4 | ~0.125×       | FP4 formats supported on very new GPUs         | Experimental/fast on newest hardware ([nvidia.github.io][3])             |
+
+**Quantization *methods*** (how bits are chosen and applied)
+
+| Method                                            | What it does                                   | Key properties                                                          |
+| ------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------- |
+| **Post-Training Quantization (PTQ)**              | Quantize weights after training                | No retraining; good memory cut, low complexity ([NVIDIA Docs][5])       |
+| **Quantization-Aware Training (QAT)**             | Simulates quantization during training         | Better quality but requires retraining ([NVIDIA Docs][5])               |
+| **GPTQ (Generalized Post-Training Quantization)** | Calibrated weight quantization                 | Often 4-bit; layer-aware, reduces quantization error ([lafzusa.com][1]) |
+| **AWQ (Activation-Aware Weight Quantization)**    | Prioritizes important weights                  | Keeps quality higher at same bit width vs GPTQ ([lafzusa.com][1])       |
+| **GGUF & variants**                               | File format with quant types (Q4_K_M, Q5_K_M…) | Used in llama.cpp etc.; multiple quant levels ([lafzusa.com][1])        |
+| **bitsandbytes (bnb) dynamic)**                   | Load-time quantization (INT8/NF4)              | Good in training loops (QLoRA) ([lafzusa.com][1])                       |
+
+**What the differences mean (simple)**
+
+* **FP32/BF16/FP16** keep floats; BF16 has big dynamic range like FP32 but lower precision, so often used as “baseline” in LLM serving. FP16 is similar size but slightly different numeric properties. ([lafzusa.com][1])
+* **FP8** is emerging low-bit float that retains wider range than INT8 and can be lossless on some tasks if hardware supports it (Tensor cores). ([nvidia.github.io][3])
+* **INT8** trades precision for memory and speed; good quality for many models with calibration. ([BentoML][4])
+* **INT4 / NF4** go further down, cutting memory a lot. NF4 has better accuracy than plain INT4 by placing quant levels according to weight distribution. ([lafzusa.com][1])
+* Methods like **GPTQ, AWQ** define how those bits are chosen; AWQ often gives better quality than basic GPTQ at the same bit size. ([lafzusa.com][1])
+
+**Quality vs compression (rule of thumb)**
+
+* Higher precision (BF16/FP16/FP8) → *best quality* but larger memory. ([nvidia.github.io][3])
+* Mid precision (INT8) → *good quality* with significant memory/cost reduction. ([BentoML][4])
+* Low precision (INT4/NF4) + smart methods (AWQ/GPTQ) → *huge memory cut* with decent quality if method is good. ([lafzusa.com][1])
+
+**When each is used**
+
+* **FP32/BF16/FP16**: baseline training & high-quality inference. ([lafzusa.com][1])
+* **FP8**: on GPUs with support, mix of quality and memory. ([nvidia.github.io][3])
+* **INT8**: mainstream efficient inference. ([BentoML][4])
+* **INT4/NF4 with GPTQ/AWQ**: very low-memory deployment, good for consumer hardware or dense multi-context serving. ([lafzusa.com][1])
+
+[1]: https://lafzusa.com/llm-masterclass/03-inference/quantization.html?utm_source=chatgpt.com "LLM Quantization Guide - GGUF, GPTQ, AWQ, bitsandbytes | LafzUSA"
+[2]: https://medium.com/%40dimpleukothari178/tiny-but-mighty-how-quantization-makes-large-language-models-practical-e4a314dbb764?utm_source=chatgpt.com "“Tiny But Mighty: How Quantization Makes Large Language Models Practical” | by Dimpleukothari | Medium"
+[3]: https://nvidia.github.io/TensorRT-LLM/1.2.0rc5/features/quantization.html?utm_source=chatgpt.com "Quantization — TensorRT LLM"
+[4]: https://bentoml.com/llm/getting-started/llm-quantization?utm_source=chatgpt.com "LLM quantization | LLM Inference Handbook"
+[5]: https://docs.nvidia.com/nemo-framework/user-guide/24.09/model-optimization/quantization/quantization.html?utm_source=chatgpt.com "Quantization — NVIDIA NeMo Framework User Guide"
 
 ---
 
@@ -1537,6 +1720,47 @@ sin_cache = rope_cache.sin()
 3. **Graph capture**: If allocation happens during capture, it fails
 
 Solution: Expand to `max_seq_len` before graph capture
+
+**RoPE (Rotary Position Embeddings)**
+It’s how many LLMs encode *token position* inside attention.
+
+Instead of adding position vectors, RoPE **rotates** query/key vectors using sin/cos based on token index.
+
+**What this code does**
+
+* `pos`: token positions `0..max_seq_len-1`
+* `freqs`: per-dimension rotation frequencies
+* `rope_cache`: outer product → angle for each (position, dim)
+* `sin_cache`, `cos_cache`: lookup tables used in every attention call
+
+So at runtime, attention just does:
+
+```
+(q, k) = rotate(q, k, sin[pos], cos[pos])
+```
+
+No trig calls during inference.
+
+**Why pre-expand to max_seq_len**
+
+* CUDA Graphs need **fixed memory addresses**
+* First-time tensor creation inside a forward = new allocation
+* Allocation during graph capture = ❌ graph breaks
+* Precomputing sin/cos once makes memory **static and reusable**
+
+**Mental model**
+
+* RoPE cache = read-only table
+* CUDA graph = “record once, replay forever”
+* Dynamic allocation inside recording = illegal
+
+**Bottom line**
+Precompute RoPE sin/cos upfront so:
+
+* no runtime allocation
+* graph capture succeeds
+* faster, deterministic inference
+
 
 ---
 
@@ -2122,6 +2346,8 @@ def load_weights_and_postprocess(
                     module.to(original_device)
 ```
 
+> IMPORTANT: Post load ops of Quantization formats like AWQ, GPTQ happen here
+
 **`model.load_weights()` implementation:**
 
 ```python
@@ -2545,377 +2771,6 @@ For 32 layers:
 
 For 100 concurrent requests:
 = 107 GB just for KV cache!
-```
-
----
-
-### KV Cache Management Strategies
-
-#### 1. **PagedAttention (vLLM/SGLang)**
-
-```
-Traditional KV cache:
-Request A: [████████████________] (Allocated 2048, using 800)
-Request B: [████████████________] (Allocated 2048, using 800)
-           ^^^^^^^^^^^^           Only 60% utilized!
-
-PagedAttention:
-Memory pool divided into pages (e.g., 64 tokens each)
-
-Request A: [Page 0][Page 1][Page 2]...[Page 12]  (13 pages for 800 tokens)
-Request B: [Page 13][Page 14]...[Page 25]        (13 pages for 800 tokens)
-
-No fragmentation, ~95% utilization!
-```
-
-**Implementation:**
-
-```python
-class TokenToKVPoolAllocator:
-    def __init__(self, page_size=64, total_pages=10000):
-        self.page_size = page_size
-        self.free_pages = list(range(total_pages))
-        self.request_to_pages = {}
-    
-    def allocate(self, request_id, num_tokens):
-        num_pages = (num_tokens + self.page_size - 1) // self.page_size
-        pages = [self.free_pages.pop() for _ in range(num_pages)]
-        self.request_to_pages[request_id] = pages
-        return pages
-    
-    def free(self, request_id):
-        pages = self.request_to_pages.pop(request_id)
-        self.free_pages.extend(pages)
-```
-
----
-
-#### 2. **RadixCache (Prefix Sharing)**
-
-```
-Request A: "Translate to French: Hello"
-Request B: "Translate to French: Goodbye"
-Request C: "Translate to French: How are you"
-
-Without prefix sharing:
-A: Compute "Translate to French: " + "Hello"
-B: Compute "Translate to French: " + "Goodbye"  ← Redundant!
-C: Compute "Translate to French: " + "How are you"  ← Redundant!
-
-With RadixCache:
-Shared prefix: "Translate to French: " (computed once)
-A: Reuse prefix + compute "Hello"
-B: Reuse prefix + compute "Goodbye"
-C: Reuse prefix + compute "How are you"
-```
-
-**Data structure:**
-
-```python
-class RadixCache:
-    """
-    Trie-based cache for KV values.
-    """
-    
-    class Node:
-        def __init__(self):
-            self.children = {}  # token → Node
-            self.kv_ptrs = None  # Pointer to KV cache pages
-            self.ref_count = 0
-    
-    def __init__(self):
-        self.root = self.Node()
-    
-    def match_prefix(self, token_ids):
-        """
-        Find longest matching prefix in cache.
-        
-        Returns:
-            matched_len: Number of tokens matched
-            node: Node representing the matched prefix
-        """
-        node = self.root
-        matched_len = 0
-        
-        for i, token_id in enumerate(token_ids):
-            if token_id in node.children:
-                node = node.children[token_id]
-                matched_len = i + 1
-            else:
-                break
-        
-        return matched_len, node
-    
-    def insert(self, token_ids, kv_ptrs):
-        """
-        Insert new sequence into cache.
-        """
-        node = self.root
-        
-        for token_id in token_ids:
-            if token_id not in node.children:
-                node.children[token_id] = self.Node()
-            node = node.children[token_id]
-        
-        node.kv_ptrs = kv_ptrs
-        node.ref_count += 1
-```
-
----
-
-#### 3. **FP8 Quantization**
-
-Reduces KV cache memory by 50%:
-
-```python
-# Before: bfloat16
-k_cache = torch.randn(seq_len, num_heads, head_dim, dtype=torch.bfloat16)
-# 2 bytes per element
-
-# After: fp8_e4m3
-k_scale = compute_scale(k_cache)
-k_cache_fp8 = (k_cache * k_scale).to(torch.float8_e4m3fn)
-# 1 byte per element
-
-# Dequantize during attention
-k_cache_bf16 = k_cache_fp8.to(torch.bfloat16) / k_scale
-```
-
----
-
-### Memory Profiling
-
-**Determining max batch size:**
-
-```python
-def profile_memory(model, server_args):
-    """
-    Profile GPU memory to determine max batch size.
-    """
-    
-    # Get total GPU memory
-    total_memory = torch.cuda.get_device_properties(0).total_memory
-    
-    # Memory already used by model weights
-    weight_memory = get_model_memory_usage(model)
-```
-# Reserve memory for:
-# - PyTorch allocator overhead
-# - NCCL buffers
-# - Temporary tensors
-reserved_memory = total_memory * 0.1  # 10% reserved
-
-# Available for KV cache + activations
-available_memory = total_memory - weight_memory - reserved_memory
-
-# Estimate memory per token
-memory_per_token = estimate_memory_per_token(model, server_args)
-
-# Max tokens in KV cache
-max_tokens = int(available_memory * server_args.mem_fraction_static / memory_per_token)
-
-# Max concurrent requests (assuming avg 512 tokens per request)
-max_requests = max_tokens // 512
-
-logger.info(
-    f"Total memory: {total_memory / 1e9:.2f} GB\n"
-    f"Weight memory: {weight_memory / 1e9:.2f} GB\n"
-    f"Available: {available_memory / 1e9:.2f} GB\n"
-    f"Max tokens: {max_tokens}\n"
-    f"Max requests: {max_requests}"
-)
-
-return max_tokens, max_requests
-```
-
-```
-
----
-
-## Request Processing Flow
-
-### End-to-End Request Flow
-
-```
-
-1. Client sends request ↓
-2. FastAPI receives POST /v1/chat/completions ↓
-3. OpenAIServingChat.create_chat_completion() ├─ Validate request ├─ Apply chat template └─ Send to TokenizerManager ↓
-4. TokenizerManager.generate() ├─ Tokenize prompt ├─ Create GenerateReqInput └─ Send to Scheduler via ZMQ ↓
-5. Scheduler receives request ├─ Add to waiting queue └─ Event loop picks it up ↓
-6. Scheduler.schedule_batch() ├─ Select requests for batch ├─ Allocate KV cache ├─ Create ModelWorkerBatch └─ Call model_runner.forward() ↓
-7. ModelRunner.forward() ├─ Prepare inputs (input_ids, positions, etc.) ├─ Call model() └─ Return logits ↓
-8. Scheduler processes logits ├─ Sample next tokens ├─ Update KV cache pointers ├─ Check for EOS/max_len └─ Send output tokens to Detokenizer ↓
-9. Detokenizer receives tokens ├─ Convert token IDs → strings ├─ Handle streaming └─ Send to TokenizerManager ↓
-10. TokenizerManager receives strings ├─ Update response buffer └─ Yield to FastAPI ↓
-11. FastAPI streams response to client ├─ SSE (Server-Sent Events) format └─ data: {"choices": [{"delta": {"content": "Paris"}}]}
-
-````
-
----
-
-### Request Structures
-
-**Client request (OpenAI format):**
-
-```json
-{
-  "model": "meta-llama/Llama-3-8B",
-  "messages": [
-    {"role": "user", "content": "What is the capital of France?"}
-  ],
-  "temperature": 0.7,
-  "max_tokens": 100,
-  "stream": true
-}
-````
-
-**Internal representation:**
-
-```python
-@dataclass
-class GenerateReqInput:
-    """Request sent to scheduler."""
-    
-    # Unique request ID
-    rid: str
-    
-    # Input token IDs
-    input_ids: List[int]
-    
-    # Sampling parameters
-    sampling_params: SamplingParams
-    
-    # Return logprobs, token usage, etc.
-    return_logprob: bool
-    logprob_start_len: int
-    top_logprobs_num: int
-    
-    # Stream response?
-    stream: bool
-    
-    # Other metadata
-    ...
-
-
-@dataclass
-class SamplingParams:
-    """Controls output generation."""
-    
-    # Randomness (0 = greedy, 1 = max randomness)
-    temperature: float = 1.0
-    
-    # Nucleus sampling
-    top_p: float = 1.0
-    
-    # Top-k sampling
-    top_k: int = -1  # -1 means disabled
-    
-    # Stop sequences
-    stop: Optional[List[str]] = None
-    
-    # Max output length
-    max_new_tokens: int = 16
-    
-    # Min output length
-    min_new_tokens: int = 0
-    
-    # Repetition penalty
-    presence_penalty: float = 0.0
-    frequency_penalty: float = 0.0
-    repetition_penalty: float = 1.0
-    
-    # Regex constraints
-    regex: Optional[str] = None
-    
-    # JSON mode
-    json_schema: Optional[Dict] = None
-```
-
----
-
-### Batching and Scheduling
-
-**Continuous batching:**
-
-```
-Traditional batching (wait for batch to fill):
-Time 0: Request A arrives → wait
-Time 1: Request B arrives → wait
-Time 2: Request C arrives → wait
-Time 3: Request D arrives → START BATCH [A,B,C,D]
-Time 4: All requests finish together
-
-Problem: High latency for early requests!
-
-Continuous batching (SGLang/vLLM):
-Time 0: Request A arrives → START BATCH [A]
-Time 1: Request B arrives → ADD TO BATCH [A,B]
-Time 2: Request C arrives → ADD TO BATCH [A,B,C]
-Time 3: Request D arrives → ADD TO BATCH [A,B,C,D]
-Time 4: Request A finishes → REMOVE FROM BATCH [B,C,D]
-Time 5: Request E arrives → ADD TO BATCH [B,C,D,E]
-
-Much lower latency!
-```
-
-**Batch selection logic:**
-
-```python
-def schedule_batch(self, waiting_queue, running_requests):
-    """
-    Select requests for next batch.
-    """
-    
-    batch = []
-    total_tokens = 0
-    
-    # First, add running requests (already have KV cache)
-    for req in running_requests:
-        if self._can_add_to_batch(req, total_tokens):
-            batch.append(req)
-            total_tokens += req.num_tokens
-    
-    # Then, add new requests from waiting queue
-    while waiting_queue and total_tokens < self.max_batch_tokens:
-        req = waiting_queue[0]
-        
-        # Check if we have enough memory for this request
-        if not self._can_allocate_kv_cache(req):
-            break  # KV cache full, can't add more requests
-        
-        if self._can_add_to_batch(req, total_tokens):
-            waiting_queue.popleft()
-            
-            # Allocate KV cache
-            self._allocate_kv_cache(req)
-            
-            batch.append(req)
-            total_tokens += req.num_tokens
-        else:
-            break  # Batch full
-    
-    return batch
-
-
-def _can_add_to_batch(self, req, current_tokens):
-    """
-    Check if request can fit in batch.
-    """
-    
-    # Respect max batch size
-    if len(batch) >= self.max_batch_size:
-        return False
-    
-    # Respect max total tokens
-    if current_tokens + req.num_tokens > self.max_batch_tokens:
-        return False
-    
-    # For prefill requests, limit total prefill tokens
-    if req.is_prefill and current_tokens + req.input_len > self.max_prefill_tokens:
-        return False
-    
-    return True
 ```
 
 ---

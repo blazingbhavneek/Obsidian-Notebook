@@ -4,25 +4,11 @@
     "type": "split",
     "children": [
       {
-        "id": "9801d0acd5e0da74",
+        "id": "69325a9c93dee664",
         "type": "tabs",
         "children": [
           {
-            "id": "c3bde6922116d34a",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "CUDA/Section 1.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "Section 1"
-            }
-          },
-          {
-            "id": "b2a64a356ef8e934",
+            "id": "f53543e7e54f4b74",
             "type": "leaf",
             "state": {
               "type": "markdown",
@@ -35,8 +21,7 @@
               "title": "Server Launch"
             }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "vertical"
@@ -93,8 +78,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 200,
-    "collapsed": true
+    "width": 200
   },
   "right": {
     "id": "df5449a757fb8bbe",
@@ -110,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Web Development/FullStack/NextJS/5. Layout.js, Conditional component.md",
+                "file": "Docker Network Troubleshoot.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -120,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for 5. Layout.js, Conditional component"
+              "title": "Backlinks for Docker Network Troubleshoot"
             }
           },
           {
@@ -566,7 +550,7 @@
             }
           },
           {
-            "id": "b960a2e20cce9d0e",
+            "id": "cc95bcda756b9d37",
             "type": "leaf",
             "state": {
               "type": "review-queue-list-view",
@@ -576,187 +560,7 @@
             }
           },
           {
-            "id": "6c6e556309768738",
-            "type": "leaf",
-            "state": {
-              "type": "review-queue-list-view",
-              "state": {},
-              "icon": "lucide-ghost",
-              "title": "review-queue-list-view"
-            }
-          },
-          {
-            "id": "4debd3e960c77daa",
-            "type": "leaf",
-            "state": {
-              "type": "review-queue-list-view",
-              "state": {},
-              "icon": "lucide-ghost",
-              "title": "review-queue-list-view"
-            }
-          },
-          {
-            "id": "127932c465a845e2",
-            "type": "leaf",
-            "state": {
-              "type": "review-queue-list-view",
-              "state": {},
-              "icon": "lucide-ghost",
-              "title": "review-queue-list-view"
-            }
-          },
-          {
-            "id": "2611a364bfa50270",
-            "type": "leaf",
-            "state": {
-              "type": "review-queue-list-view",
-              "state": {},
-              "icon": "lucide-ghost",
-              "title": "review-queue-list-view"
-            }
-          },
-          {
-            "id": "5c04611805bca4a4",
-            "type": "leaf",
-            "state": {
-              "type": "review-queue-list-view",
-              "state": {},
-              "icon": "lucide-ghost",
-              "title": "review-queue-list-view"
-            }
-          },
-          {
-            "id": "0f0d5c4fc67a530f",
-            "type": "leaf",
-            "state": {
-              "type": "review-queue-list-view",
-              "state": {},
-              "icon": "lucide-ghost",
-              "title": "review-queue-list-view"
-            }
-          },
-          {
-            "id": "a32e03285a0f8261",
-            "type": "leaf",
-            "state": {
-              "type": "review-queue-list-view",
-              "state": {},
-              "icon": "lucide-ghost",
-              "title": "review-queue-list-view"
-            }
-          },
-          {
-            "id": "adcf404f04238686",
-            "type": "leaf",
-            "state": {
-              "type": "review-queue-list-view",
-              "state": {},
-              "icon": "lucide-ghost",
-              "title": "review-queue-list-view"
-            }
-          },
-          {
-            "id": "cd5e7a1e9e9bbe98",
-            "type": "leaf",
-            "state": {
-              "type": "review-queue-list-view",
-              "state": {},
-              "icon": "lucide-ghost",
-              "title": "review-queue-list-view"
-            }
-          },
-          {
-            "id": "1da89cff453c2112",
-            "type": "leaf",
-            "state": {
-              "type": "review-queue-list-view",
-              "state": {},
-              "icon": "lucide-ghost",
-              "title": "review-queue-list-view"
-            }
-          },
-          {
-            "id": "e9a3c268ec765f92",
-            "type": "leaf",
-            "state": {
-              "type": "review-queue-list-view",
-              "state": {},
-              "icon": "lucide-ghost",
-              "title": "review-queue-list-view"
-            }
-          },
-          {
-            "id": "fd6d9ad8f53c2e46",
-            "type": "leaf",
-            "state": {
-              "type": "review-queue-list-view",
-              "state": {},
-              "icon": "lucide-ghost",
-              "title": "review-queue-list-view"
-            }
-          },
-          {
-            "id": "6169cd508cd88c95",
-            "type": "leaf",
-            "state": {
-              "type": "review-queue-list-view",
-              "state": {},
-              "icon": "lucide-ghost",
-              "title": "review-queue-list-view"
-            }
-          },
-          {
-            "id": "13d489e452717660",
-            "type": "leaf",
-            "state": {
-              "type": "review-queue-list-view",
-              "state": {},
-              "icon": "lucide-ghost",
-              "title": "review-queue-list-view"
-            }
-          },
-          {
-            "id": "f6140950e6d5c166",
-            "type": "leaf",
-            "state": {
-              "type": "review-queue-list-view",
-              "state": {},
-              "icon": "lucide-ghost",
-              "title": "review-queue-list-view"
-            }
-          },
-          {
-            "id": "c0280f6701af8528",
-            "type": "leaf",
-            "state": {
-              "type": "review-queue-list-view",
-              "state": {},
-              "icon": "lucide-ghost",
-              "title": "review-queue-list-view"
-            }
-          },
-          {
-            "id": "48de6435e061bf43",
-            "type": "leaf",
-            "state": {
-              "type": "review-queue-list-view",
-              "state": {},
-              "icon": "lucide-ghost",
-              "title": "review-queue-list-view"
-            }
-          },
-          {
-            "id": "4e7613800761d503",
-            "type": "leaf",
-            "state": {
-              "type": "review-queue-list-view",
-              "state": {},
-              "icon": "SpacedRepIcon",
-              "title": "Notes Review Queue"
-            }
-          },
-          {
-            "id": "ea7dd2ec6cc5c8a6",
+            "id": "7a410216fe37b1f2",
             "type": "leaf",
             "state": {
               "type": "review-queue-list-view",
@@ -774,8 +578,6 @@
   },
   "left-ribbon": {
     "hiddenItems": {
-      "obsidian-excalidraw-plugin:New drawing": false,
-      "code-files:Create Code File": false,
       "bases:Create new base": false,
       "switcher:Open quick switcher": false,
       "graph:Open graph view": false,
@@ -789,29 +591,34 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "a0d882203c103598",
+  "active": "f53543e7e54f4b74",
   "lastOpenFiles": [
-    "CUDA/Section 1.md",
+    "AI/SGLang/Model Implementations.md",
+    "AI/SGLang/SGLang PR - LFM2.md",
+    "AI/SGLang/SGLang PR - IBM Granite.md",
+    "AI/SGLang/Overview.md",
     "Codebase/SGLang/Server Launch.md",
+    "CUDA/Section 1.md",
     "Codebase/SGLang",
     "Codebase",
-    "AI/SGLang/SGLang PR - IBM Granite.md",
-    "AI/SGLang/SGLang PR - LFM2.md",
-    "C++/learnCPP/Chapter 4.md",
-    "C++/learnCPP/Chapter 2.md",
-    "C++/learnCPP/Chapter 0.md",
-    "AI/Local LLM Hosting.md",
-    "AI/C Benchmarking.md",
-    "AI/SGLang/Model Implementations.md",
-    "AI/SGLang/Overview.md",
-    "C++/5. Static, Multiple returns, Templates and Macros.md",
     "CUDA",
+    "C++/learnCPP/Chapter 2.md",
     "Docker Network Troubleshoot.md",
-    "README.md",
-    "C++/learnCPP/Chapter 1.md",
-    "C++/1. Building CPP, Pointers and basics of OOPS.md",
+    "C++/learnCPP/Chapter 4.md",
+    "SGLang PRs.md",
+    "C++/learnCPP/Chapter 0.md",
     "C++/learnCPP",
+    "helloCPP/1. Basics.md",
+    "C++/1. Building CPP, Pointers and basics of OOPS.md",
+    "C++/5. Static, Multiple returns, Templates and Macros.md",
+    "C++/4. Objects, Smart Pointers and Vector Optimisations.md",
+    "C++/3. Keywords and Operators.md",
+    "C++/2. Arrays, Strings and Literals.md",
+    "helloCPP",
+    "AI/C Benchmarking.md",
     "swe-bench-chart-2025-12-22.png",
+    "AI/Local LLM Hosting.md",
+    "README.md",
     "images/Pasted image 20250528093356.png",
     "AI/SGLang",
     "AI",
@@ -822,10 +629,6 @@
     "Devops/Docker/4. Volumes, Persistant data & Bind mounts.md",
     "Japanese/N4/Checklist.md",
     "Japanese/N4/新日本語500.md",
-    "Devops/Docker/6. Docker Compose.md",
-    "Web Development/AI/Langchain/4. Tools, Agents and Executers.md",
-    "Web Development/Backend/3. MongoDB Basics.md",
-    "Web Development/Backend/1. Basics of Internet.md",
     "images/Pasted image 20250623165801.png",
     "images/Pasted image 20250623112305.png",
     "images",
@@ -834,7 +637,6 @@
     "images/Pasted image 20250623170635.png",
     "Japanese/N4",
     "Japanese",
-    "Web Development/Untitled",
     "C++/Untitled.canvas",
     "C++/Untitled 1.canvas",
     "Untitled 1.canvas",
