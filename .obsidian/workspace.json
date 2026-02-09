@@ -4,30 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "69325a9c93dee664",
+        "id": "5c5c31f92aab2b3d",
         "type": "tabs",
+        "dimension": 45.65345949142519,
         "children": [
           {
-            "id": "f53543e7e54f4b74",
+            "id": "9aa4b02e15015323",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Codebase/SGLang/Server Launch.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "Server Launch"
-            }
-          },
-          {
-            "id": "187346704933d764",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "Codebase/SGLang/Piecewise Cuda Graphs.md",
+                "file": "Codebase/SGLang/Piecewise Cuda Graph/Piecewise Cuda Graphs.md",
                 "mode": "source",
                 "source": false
               },
@@ -35,8 +22,28 @@
               "title": "Piecewise Cuda Graphs"
             }
           }
-        ],
-        "currentTab": 1
+        ]
+      },
+      {
+        "id": "4884242c8548d8bb",
+        "type": "tabs",
+        "dimension": 54.346540508574805,
+        "children": [
+          {
+            "id": "84f2484286a57b0f",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Codebase/SGLang/Piecewise Cuda Graph/Summary.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Summary"
+            }
+          }
+        ]
       }
     ],
     "direction": "vertical"
@@ -93,7 +100,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 200
+    "width": 200,
+    "collapsed": true
   },
   "right": {
     "id": "df5449a757fb8bbe",
@@ -109,7 +117,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Docker Network Troubleshoot.md",
+                "file": "Web Development/FullStack/NextJS/5. Layout.js, Conditional component.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -119,7 +127,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for Docker Network Troubleshoot"
+              "title": "Backlinks for 5. Layout.js, Conditional component"
             }
           },
           {
@@ -565,7 +573,7 @@
             }
           },
           {
-            "id": "cc95bcda756b9d37",
+            "id": "b960a2e20cce9d0e",
             "type": "leaf",
             "state": {
               "type": "review-queue-list-view",
@@ -575,7 +583,197 @@
             }
           },
           {
-            "id": "7a410216fe37b1f2",
+            "id": "6c6e556309768738",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "4debd3e960c77daa",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "127932c465a845e2",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "2611a364bfa50270",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "5c04611805bca4a4",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "0f0d5c4fc67a530f",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "a32e03285a0f8261",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "adcf404f04238686",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "cd5e7a1e9e9bbe98",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "1da89cff453c2112",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "e9a3c268ec765f92",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "fd6d9ad8f53c2e46",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "6169cd508cd88c95",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "13d489e452717660",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "f6140950e6d5c166",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "c0280f6701af8528",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "48de6435e061bf43",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "4e7613800761d503",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "ea7dd2ec6cc5c8a6",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "024674f58ec31380",
             "type": "leaf",
             "state": {
               "type": "review-queue-list-view",
@@ -603,38 +801,40 @@
       "obsidian-kanban:Create new board": false,
       "obsidian-spaced-repetition:Review flashcards": false,
       "omnisearch:Omnisearch": false,
-      "obsidian-git:Open Git source control": false
+      "obsidian-git:Open Git source control": false,
+      "obsidian-excalidraw-plugin:New drawing": false,
+      "code-files:Create Code File": false
     }
   },
-  "active": "187346704933d764",
+  "active": "84f2484286a57b0f",
   "lastOpenFiles": [
-    "Codebase/SGLang/Server Launch.md",
-    "Codebase/SGLang/Piecewise Cuda Graphs.md",
-    "AI/SGLang/Model Implementations.md",
-    "AI/SGLang/SGLang PR - LFM2.md",
-    "AI/SGLang/SGLang PR - IBM Granite.md",
-    "AI/SGLang/Overview.md",
+    "Codebase/SGLang/Piecewise Cuda Graph/Piecewise Cuda Graphs.md",
+    "Codebase/SGLang/Piecewise Cuda Graph/Summary.md",
     "CUDA/Section 1.md",
+    "Codebase/SGLang/Diagrams.md",
+    "Codebase/SGLang/Server Launch.md",
+    "swe-bench-chart-2025-12-22.png",
+    "README.md",
+    "Docker Network Troubleshoot.md",
+    "Excalidraw/Drawing 2026-02-09 19.24.29.excalidraw.md",
+    "Codebase/SGLang/Piecewise Cuda Graph",
+    "Excalidraw",
     "Codebase/SGLang",
     "Codebase",
-    "CUDA",
-    "C++/learnCPP/Chapter 2.md",
-    "Docker Network Troubleshoot.md",
+    "AI/SGLang/SGLang PR - IBM Granite.md",
+    "AI/SGLang/SGLang PR - LFM2.md",
     "C++/learnCPP/Chapter 4.md",
-    "SGLang PRs.md",
+    "C++/learnCPP/Chapter 2.md",
     "C++/learnCPP/Chapter 0.md",
-    "C++/learnCPP",
-    "helloCPP/1. Basics.md",
-    "C++/1. Building CPP, Pointers and basics of OOPS.md",
-    "C++/5. Static, Multiple returns, Templates and Macros.md",
-    "C++/4. Objects, Smart Pointers and Vector Optimisations.md",
-    "C++/3. Keywords and Operators.md",
-    "C++/2. Arrays, Strings and Literals.md",
-    "helloCPP",
-    "AI/C Benchmarking.md",
-    "swe-bench-chart-2025-12-22.png",
     "AI/Local LLM Hosting.md",
-    "README.md",
+    "AI/C Benchmarking.md",
+    "AI/SGLang/Model Implementations.md",
+    "AI/SGLang/Overview.md",
+    "C++/5. Static, Multiple returns, Templates and Macros.md",
+    "CUDA",
+    "C++/learnCPP/Chapter 1.md",
+    "C++/1. Building CPP, Pointers and basics of OOPS.md",
+    "C++/learnCPP",
     "images/Pasted image 20250528093356.png",
     "AI/SGLang",
     "AI",
@@ -644,6 +844,7 @@
     "Devops/Docker/5. Buildtime, Entrypoint, Shell & Exec.md",
     "Devops/Docker/4. Volumes, Persistant data & Bind mounts.md",
     "Japanese/N4/Checklist.md",
+    "Japanese/N4/新日本語500.md",
     "images/Pasted image 20250623165801.png",
     "images/Pasted image 20250623112305.png",
     "images",
@@ -651,7 +852,6 @@
     "images/Pasted image 20250623170820.png",
     "images/Pasted image 20250623170635.png",
     "Japanese/N4",
-    "Japanese",
     "C++/Untitled.canvas",
     "C++/Untitled 1.canvas",
     "Untitled 1.canvas",
