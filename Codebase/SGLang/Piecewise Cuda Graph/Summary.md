@@ -149,3 +149,138 @@
 					- with set_compiled(True):
 						- output = self.model_runner.model.forward
 						- CRITICAL: It seems like we are using original models forward, but as you would see later, we have dynamically replaced models forward with CUDA graph wherever we could compile the code
+- python/sglang/srt/compilation/compile.py
+	- _COMPILE_ENABLED = contextvars.ContextVar("_COMPILE_ENABLED", default=False)
+		- contextvars.ContextVar is used instead of a simple global variable because:
+			- It's thread-safe and async-safe (each async task/thread gets its own copy)
+			- It supports proper scoping with tokens for nested contexts
+			- Essential when multiple requests might be processed concurrently
+	- def set_compiled(enabled: bool = True):
+		- token = _COMPILE_ENABLED.set(enabled)
+	- class IntermediateTensors
+		- For all pipeline stages except the last, we need to return the hidden states and residuals to be sent to the next stage. 
+		- This data structure contains the hidden states and residuals for a request
+	- def _normalize_dims(dims, ndim: int):
+		- Converts negative dimension indices to positive ones
+	- class \_MaybeIntermediateTensors:
+		- """Duck-typed check to support your IntermediateTensors without importing."""
+		- Duck typing avoids circular imports and allows this to work with any object
+		- that has a `tensors` dict attribute, not just IntermediateTensors specifically
+	- def \_mark_dynamic_on_value
+		- torch.\_dynamo.mark_dynamic tells TorchDynamo that certain tensor dimensions can vary at runtime. 
+		- Without this, Dynamo assumes shapes are static and would recompile for every new shape (very slow).  
+		- For LLMs, the batch dimension (dim 0) is typically dynamic because Different numbers of requests in a batch and Different sequence lengths during prefill
+		- This uses the \_MaybeIntermediateTensors 
+		- prime syntax: torch.\_dynamo.mark_dynamic(val, \_normalize_dims(dims, val.ndim))
+	- def \_infer_dynamic_arg_dims_from_annotations
+		- This function inspects the type annotations of a forward() method to automatically determine which arguments have dynamic dimensions.
+	- install_torch_compiled (IMPORTANT!!)
+		- JIT Compilation for torch modules with SGLang backend
+		- This is the main entry point for enabling torch.compile on a model, It wraps the module's forward method with a "trampoline" that can switch between compiled and uncompiled execution based on the _COMPILE_ENABLED flag
+		- This was used piecwise cuda runner to replace forward code with compiled code
+		- Input
+			- torch nn module
+			- Dynamic arg dimension (will use above defined function if not passed)
+			- backend factory (Sglang backend used for compilation, CUDA or NPU)
+			- compile_config: CompilationConfig, recieved from Model runner 
+			- fullgraph (bool) = True 
+			- graph_pool: Any
+		- unbound_fwd = module.__class__.forward
+			- Non compiled fwd method. 
+			- We get the unbound method from the class (not instance) so we can properly wrap it while keeping access to both the original and compiled versions
+		- original_code = unbound_fwd.\_\_code__
+		- dyn_map = dynamic_arg_dims or \_infer_dynamic_arg_dims_from_annotations(unbound_fwd)
+		- if backend_factory is None:
+			- backend_factory = lambda gm, ex: SGLangBackend
+		- compiled_codes: list[type(original_code)] = []
+		- state = {"compiled": False, "compiled_callable": None}
+		- bytecode_hook
+			- Bytecode hook
+			  ```
+			    ### EXPLANATION: This registers the hook with TorchDynamo's bytecode transformation
+			    ### system. Dynamo uses Python's frame evaluation hooks (PEP 523) to intercept
+			    ### function calls. When it decides to compile a function:
+			    ### 1. It traces the bytecode to build an FX graph
+			    ### 2. Compiles the graph with the backend
+			    ### 3. Generates new bytecode that uses the compiled version
+			    ### 4. Calls all registered bytecode_hooks with (old_code, new_code)
+			    ### 
+			    ### The hook is global - it will be called for ALL Dynamo compilations,
+			    ### which is why we filter to only care about our specific module.
+			    torch._dynamo.convert_frame.register_bytecode_hook(bytecode_hook)
+			
+			    def _ensure_compiled(self, *args, **kwargs):
+			        """Compile on first use (with flag ON)."""
+			        ### This implements LAZY compilation - we don't compile until the model
+			        ### is actually used. This is important because:
+			        ### 1. We need real tensor shapes to properly mark dynamic dimensions
+			        ### 2. Some model configurations might not be known until runtime
+			        ### 3. Avoids compiling code paths that are never used
+			        if state["compiled"]:
+			            return
+			        # Mark dynamic dims only when we are about to compile
+			        sig = inspect.signature(unbound_fwd)
+			        ba = sig.bind(self, *args, **kwargs)
+			        ba.apply_defaults()
+			        ### bind() matches args/kwargs to parameter names
+			        ### apply_defaults() fills in default values for unspecified params
+			        for name, dims in (dyn_map or {}).items():
+			            if name in ba.arguments:
+			                val = ba.arguments[name]
+			                if val is not None:
+			                    _mark_dynamic_on_value(val, dims)
+			                    ### Mark tensors as having dynamic dimensions BEFORE tracing
+			
+			        # Avoid cross-instance cache reuse
+			        ### Dynamo caches compiled code based on the code object. If we have
+			        ### multiple model instances (e.g., draft and target models in speculative
+			        ### decoding), we don't want them sharing cached compilations since they
+			        ### might have different configurations. This clears any existing cache.
+			        torch._dynamo.eval_frame.remove_from_cache(unbound_fwd.__code__)
+			
+			        bound = types.MethodType(unbound_fwd, self)
+			        ### Create a bound method (method + instance) for torch.compile
+			        compiled_callable = torch.compile(
+			            bound, fullgraph=fullgraph, backend=backend_factory
+			        )
+			
+			        # Trigger Dynamo so bytecode hook can capture
+			        ### The first call to compiled_callable actually triggers compilation.
+			        ### torch.compile is lazy - it doesn't compile until first execution.
+			        ### This call traces the forward pass and invokes our bytecode_hook.
+			        compiled_callable(*args, **kwargs)
+			
+			        state["compiled"] = True
+			        state["compiled_callable"] = compiled_callable
+			    
+			    ## This is where it checks if compiled, the runs the compiled version else compiles it first
+			    ## If we dont want compiled then return the original code (unbound forward)
+			    ### CORRECT: The "trampoline" pattern provides a single entry point that can
+			    ### dispatch to either compiled or uncompiled execution.
+			    ### 
+			    ### Why "trampoline"? In programming, a trampoline is a function that bounces
+			    ### control to different implementations based on runtime conditions.
+			    ### 
+			    ### Benefits:
+			    ### 1. Seamless switching between compiled/uncompiled (for debugging, profiling)
+			    ### 2. Lazy compilation (compile only when _COMPILE_ENABLED is True)
+			    ### 3. Same API regardless of compilation state
+			    def trampoline(self, *args, **kwargs):
+			        use_compiled = _COMPILE_ENABLED.get()
+			        if use_compiled:
+			            if not state["compiled"]:
+			                _ensure_compiled(self, *args, **kwargs)
+			
+			            compiled_callable = state["compiled_callable"]
+			            return compiled_callable(*args, **kwargs)
+			        else:
+			            # Explicitly run the original uncompiled forward
+			            return unbound_fwd(self, *args, **kwargs)
+			    
+			    # CRITICAL! This is why we could run model.forward in model runner because its forward was replaced here
+			    module.forward = types.MethodType(trampoline, module)
+			    ### Replace the module's forward method with our trampoline.
+			    ### types.MethodType binds the trampoline function to the module instance,
+			    ### so `self` in trampoline refers to the module.
+			    return module
+```
