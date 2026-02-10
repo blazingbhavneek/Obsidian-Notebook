@@ -100,8 +100,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 200,
-    "collapsed": true
+    "width": 200
   },
   "right": {
     "id": "df5449a757fb8bbe",
@@ -778,6 +777,26 @@
             "state": {
               "type": "review-queue-list-view",
               "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "277cae8790189786",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "SpacedRepIcon",
+              "title": "Notes Review Queue"
+            }
+          },
+          {
+            "id": "7a6cdd32c7cf79b1",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
               "icon": "SpacedRepIcon",
               "title": "Notes Review Queue"
             }
@@ -802,11 +821,10 @@
       "obsidian-spaced-repetition:Review flashcards": false,
       "omnisearch:Omnisearch": false,
       "obsidian-git:Open Git source control": false,
-      "obsidian-excalidraw-plugin:New drawing": false,
-      "code-files:Create Code File": false
+      "obsidian-excalidraw-plugin:New drawing": false
     }
   },
-  "active": "9aa4b02e15015323",
+  "active": "a0d882203c103598",
   "lastOpenFiles": [
     "Codebase/SGLang/Piecewise Cuda Graph/Summary.md",
     "Codebase/SGLang/Piecewise Cuda Graph/Piecewise Cuda Graphs.md",

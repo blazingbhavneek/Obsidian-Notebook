@@ -1,4 +1,4 @@
-
+Top to Bottom:
 - python/sglang/srt/model_executor/model_runner.py: 
 	- Start from Model runner class, that loads and runs the models in sglang
 		- can_run_piecewise_cuda_graph: that checks whether a model can run piewise cuda graph by checking
@@ -196,7 +196,7 @@
 		- state = {"compiled": False, "compiled_callable": None}
 		- bytecode_hook
 			- Bytecode hook
-			  ```
+				```
 			    ### EXPLANATION: This registers the hook with TorchDynamo's bytecode transformation
 			    ### system. Dynamo uses Python's frame evaluation hooks (PEP 523) to intercept
 			    ### function calls. When it decides to compile a function:
@@ -283,4 +283,243 @@
 			    ### types.MethodType binds the trampoline function to the module instance,
 			    ### so `self` in trampoline refers to the module.
 			    return module
-```
+				```
+
+Bottom to Top:
+- python/sglang/srt/compilation/weak_ref_tensor.py:
+	- def weak_ref_tensors
+		- Input: Tensors, list or tuple of tensors
+		- Convenience function to create weak references to tensors
+		- Uses SGL kernel for this (both cuda and npu)
+		- Helps release memory early for last graph outputs during CUDA graph capture
+
+- python/sglang/srt/compilation/compilation_config.py:
+	- class CompilationConfig
+		- init
+			- traced_files: set of paths to traced files
+			- capture_sizes: list of num tokens to capture
+			- compiler: string (e.g., "inductor")
+			- enable_debug_mode: bool
+			- split_ops: list of strings with ops to split the model at
+		- add_split_op: adds an operation to split the model
+		- add_traced_file: adds a traced file to the config
+		- get_traced_files: returns the set of traced files
+
+- python/sglang/srt/compilation/compilation_counter.py:
+	- class CompilationCounter
+		- num_models_seen: int = 0
+		- num_graphs_seen: int = 0 (including splitting ops)
+		- num_piecewise_graphs_seen: int = 0 (not including splitting ops)
+		- num_piecewise_capturable_graphs_seen: int = 0
+		- num_backend_compilations: int = 0
+		- num_gpu_runner_capture_triggers: int = 0
+		- num_cudagraph_captured: int = 0
+		- num_inductor_compiles: int = 0
+		- num_eager_compiles: int = 0
+		- num_cache_entries_updated: int = 0
+		- num_compiled_artifacts_saved: int = 0
+		- dynamo_as_is_count: int = 0
+		- Tracks compilation statistics across the system
+
+- python/sglang/srt/compilation/inductor_pass.py:
+	- What are these?
+		- Custom compiler passes for PyTorch's Inductor (the code generator for torch.compile)
+		- Utility classes to modify computation graphs during compilation
+	- What is Torch Dynamo?
+		- PyTorch's JIT compiler frontend (captures Python code into graphs)
+		- Traces Python bytecode and extracts FX graphs for optimization
+	- What is Torch Inductor?
+		- PyTorch's compiler backend (the actual code generator)
+		- Takes FX graphs from Dynamo → generates optimized kernels (Triton/C++)
+		- Part of torch.compile() system
+	- Classes
+		- PassContext
+			- Stores runtime_shape (Optional[int])
+			- Context holder for current compilation pass
+		- get_pass_context()/pass_context()
+			- Global context manager for pass state, uses above PassContext
+			- Manages runtime_shape specialization info
+		- InductorPass(CustomGraphPass)
+			- Subclass of torch._inductor.custom_graph_pass
+			- Base class for custom graph passes
+			- hash_source(): Hash functions/classes for versioning
+			- uuid(): Returns hash of source code (for cache invalidation)
+			- hash_dict(): Hash dictionaries for uuid
+			- is_applicable_for_shape(): Check if pass applies to given shape
+		- CallableInductorPass(InductorPass)
+			- Subclass of above InductorPass
+			- Wrapper to turn any callable → InductorPass
+			- Takes input torch.fx, because inductor needs this
+			- Auto-generates uuid from callable's source
+		- SGLangInductorPass(InductorPass)
+			- Subclass of above InductorPass
+			- SGLang's base pass with timing/logging
+			- dump_graph(): Debug print graphs
+			- begin()/end_and_log(): Performance timing
+		- PrinterInductorPass(SGLangInductorPass)
+			- Simple pass that just prints/dumps graph
+			- Used for debugging graph transformations
+
+- python/sglang/srt/compilation/fix_functionalization.py:
+	- Key Concept: Functionalization vs Defunctionalization
+		- Functionalization: PyTorch wraps in-place ops (like tensor.add_()) into functional versions that return new tensors (no mutations)
+		- Defunctionalization: Reverses this - converts back to in-place ops to avoid unnecessary copies
+	- class FixFunctionalizationPass
+		- Subclass of SGLangInductorPass
+		- This pass defunctionalizes certain nodes to avoid redundant tensor copies
+		- After this pass, DCE (dead-code elimination) should never be run, as de-functionalized nodes may appear as dead code
+		- def call
+			- input graph: torch.fx.Graph
+			- This counts the auto_functionalized nodes in graph, then removes it
+		- def remove
+			- Stage a node (or nodes) for removal at the end of the pass
+		- def getitem_users
+			- For user in node.users; if is_func(user, operator.getitem); users[idx] = user
+		- def replace_users_with_mutated_args
+			- Input: torch.fx.Node, mutated_args: dict[int, Union[torch.fx.Node, str]]
+			- For idx, user in self.getitem_users(node).items(); user.replace_all_uses_with(arg); self._remove(user)
+		- def insert_defunctionalized
+			- Insert a new defunctionalized node into the graph before node
+			- If one of the kwargs is 'out', provide args directly, as node.kwargs cannot be used
+		- def defunctionalize
+			- Main method that will be used
+			- Calls replace_users_with_mutated_args(node, mutated_args)
+			- Calls insert_defunctionalized(graph, node, args=args)
+			- Calls _remove(node)
+
+- python/sglang/srt/compilation/pass_manager.py:
+	- class PostGradPassManager
+		- The pass manager for post-grad passes
+		- Handles configuration, adding custom passes, and running passes
+		- Supports uuid for the Inductor code cache
+		- __init__
+			- self.passes is a list of SGLangInductorPass defined above
+		- __call__
+			- shape = get_pass_context().runtime_shape
+			- For all passes stored in init, if applicable for a shape, make the pass
+			- After the pass, self.fix_functionalization(graph), fix the functionalize using above defined class
+		- configure
+			- init self.pass_config and self.fix_functionalization
+		- add
+			- Add passes to inductor pass list
+		- uuid
+			- Make a state with two fields:
+				- pass config (uuid of pass manager)
+				- passes (list of uuid of passes + uuid of fix_functionalization)
+			- Then run InductorPass.hash_dict(state) to hash this state
+
+- python/sglang/srt/compilation/compiler_interface.py:
+	- class CompilerInterface
+		- Abstract base class defining the compiler contract
+		- name: class-level string identifier (e.g. "inductor", "eager")
+		- initialize_cache(cache_dir, disable_cache, prefix)
+			- prefix lets multiple model parts (e.g. "backbone", "eagle_head") share a base cache dir
+			- Base dir computed by stripping prefix from cache_dir
+		- compute_hash() → str
+			- For cache invalidation - if compiler config changes, hash changes, old cache ignored
+		- compile(graph, example_inputs, compiler_config, runtime_shape, key) → (Callable, handle)
+			- Returns compiled function AND a handle (e.g. hash/filepath) for later cache lookup via load()
+			- runtime_shape=None means dynamic shape; otherwise it's a specific batch size (num tokens)
+			- key is for StandaloneInductorAdapter (not in this file) to know where to save artifact
+		- load(handle, graph, example_inputs, graph_index, runtime_shape) → Callable
+			- Inverse of compile - takes the handle returned by compile and reconstructs the callable
+			- Default raises NotImplementedError (not all compilers support caching)
+		- def get_inductor_factors() → list
+			- Gathers system + PyTorch state for cache hashing
+			- Uses CacheBase.get_system() - captures GPU info, driver version, etc.
+			- Uses torch_key() - captures PyTorch version, build config, etc.
+			- Called by InductorAdaptor.compute_hash()
+	- class AlwaysHitShapeEnv
+		- Why this exists: Normally Inductor compiles inside Dynamo's tracing context which provides a ShapeEnv for dynamic shape guards. SGLang runs Inductor compilation OUTSIDE Dynamo context (one Dynamo trace, many Inductor compiles for different shapes). Without a ShapeEnv, Inductor cache lookup fails.
+		- evaluate_guards_expression → always True (guards never reject)
+		- get_pruned_guards → empty list (no guards to prune)
+		- produce_guards_expression → empty string (no guard code generated)
+		- Methods found by trial-and-error - just enough to satisfy Inductor's internal checks
+		- Used in InductorAdaptor.compile() and InductorAdaptor.load() via monkey-patching
+	- class InductorAdaptor(CompilerInterface)
+		- name = "inductor"
+		- compute_hash()
+			- Calls get_inductor_factors(), md5 hashes them, takes first 10 chars
+		- initialize_cache(cache_dir, disable_cache, prefix)
+			- Computes base_cache_dir by stripping prefix
+			- Sets TORCHINDUCTOR_CACHE_DIR and TRITON_CACHE_DIR env vars to subdirs of base cache dir
+			- This way copying one directory migrates ALL caches (Inductor+Triton)
+		- compile(graph, example_inputs, compiler_config, runtime_shape, key) → (compiled_graph, (hash_str, filepath))
+			- Increments compilation_counter.num_inductor_compiles
+			- Calls set_inductor_config() - enables max_autotune + coordinate_descent_tuning only for specific shapes (not dynamic)
+			- Deep copies graph because Inductor mutates it in-place (pytorch bug #138980)
+			- Heavy monkey-patching section (version-dependent)
+			- Wraps actual compile_fx() call in pass_context(runtime_shape)
+			- Returns (compiled_graph, (hash_str, file_path))
+		- load(handle, graph, example_inputs, graph_index, runtime_shape) → Callable
+			- handle is (hash_str, file_path) tuple from compile()
+			- Patches _get_shape_env with AlwaysHitShapeEnv again
+			- Version-dependent FxGraphCache._lookup_graph call
+			- Calling convention translation: Inductor expects f(list) → tuple, but Dynamo expects f(*args) → Any
+		- metrics_context() → context manager
+			- Returns torch._dynamo.utils.get_metrics_context()
+			- Needed because FxGraphCache (in torch 2.6) internally requires this context to be active
+		- set_inductor_config(config, runtime_shape)
+			- Only enables autotuning for specific (int) shapes, not dynamic
+			- Rationale: autotuning for dynamic shapes is wasteful since shape keeps changing
+	- class EagerAdapter(CompilerInterface)
+		- name = "eager"
+		- compile() → returns the graph module itself unchanged, no handle (None)
+		- Basically a no-op compiler - runs the FX graph in eager mode (interpreted, no codegen)
+		- Has extra num_graphs param not in base class (unused)
+		- load() → raises NotImplementedError
+		- No caching because there's nothing compiled to cache
+
+- python/sglang/srt/compilation/cuda_piecewise_backend.py:
+	- @dataclass ConcreteSizeEntry
+		- One entry per specific batch size that needs compilation or cudagraph capture
+		- runtime_shape: int - the specific batch size
+		- need_to_compile: bool - whether this size is in compile_sizes (needs Inductor compilation)
+		- use_cudagraph: bool - whether this size is in cudagraph_capture_sizes
+		- compiled: bool = False - tracks if Inductor compilation is done for this size
+		- runnable: Callable = None - the compiled callable, starts as None
+		- num_finished_warmup: int = 0 - cudagraph needs warmup runs before capture (at least 1)
+		- cudagraph: Optional[torch.cuda.CUDAGraph] - the captured CUDA graph
+		- output: Optional[Any] - stored output tensors from cudagraph capture (weak refs)
+		- data_addresses: Optional[list[int]] - debug only: records data_ptr() of input tensors during capture
+	- class CUDAPiecewiseBackend
+		- This is the callable backend for ONE piece of a piecewise-compiled model
+		- The model graph gets split at certain ops (defined in CompilationConfig.split_ops)
+		- Each piece gets its own CUDAPiecewiseBackend instance
+		- __init__
+			- graph: fx.GraphModule - this piece's FX graph
+			- compile_config: CompilationConfig
+			- inductor_config: dict - passed to InductorAdaptor.compile()
+			- graph_pool: Any - CUDA memory pool shared across all pieces
+			- piecewise_compile_index: int - which piece this is (0-indexed)
+			- total_piecewise_compiles: int - how many pieces total
+			- sym_shape_indices: list[int] - which args contain the symbolic (variable) shape
+			- compiled_graph_for_general_shape: Callable - Inductor-compiled callable for dynamic/general shape
+			- sglang_backend: reference back to parent backend
+			- is_first_graph / is_last_graph - derived from index
+			- compile_sizes: set[int] - initialized empty (shape-specific Inductor compilation)
+			- cudagraph_capture_sizes: set[int] - from compile_config.get_capture_sizes()
+			- concrete_size_entries: dict[int, ConcreteSizeEntry]
+			- to_be_compiled_sizes: copy of compile_sizes
+		- check_for_ending_compilation()
+			- Only triggers on last graph piece AND when no more sizes left to compile
+			- Calls sglang_backend.compiler_manager.save_to_file()
+		- __call__(*args) → Any
+			- This IS the callable that gets invoked during model forward pass
+			- First run path: Always runs general shape compiled graph
+			- No symbolic shapes path: If sym_shape_indices is empty (static shape), always use general shape
+			- Shape lookup: Extracts runtime_shape from args[sym_shape_indices[0]]
+			- Lazy compilation: If entry need_to_compile but not yet compiled
+			- PCG torch compile check: If is_in_pcg_torch_compile() returns True, skip cudagraph entirely
+			- CUDAGraph capture (when entry.cudagraph is None):
+				- Warmup gate: needs num_finished_warmup >= 1 before capturing
+				- Debug mode: saves input data_ptr() addresses for later replay validation
+				- GC optimization: For non-first graphs, patches out gc.collect and torch.cuda.empty_cache
+				- Captures with torch.cuda.graph(cudagraph, pool=self.graph_pool, stream=stream)
+				- Last graph output optimization: Calls weak_ref_tensors(output) inside capture context
+				- Increments compilation_counter.num_cudagraph_captured
+				- Returns strong output (not weak ref)
+			- CUDAGraph replay (when entry.cudagraph exists):
+				- Debug mode: asserts input data_ptr() addresses match capture-time addresses
+				- entry.cudagraph.replay() - replays all recorded CUDA ops
+				- Returns entry.output - the weak ref tensors whose underlying memory was just overwritten
