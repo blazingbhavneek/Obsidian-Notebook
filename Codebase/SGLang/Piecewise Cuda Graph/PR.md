@@ -80,9 +80,58 @@ Python's garbage collector can interfere with CUDA graph capture by freeing memo
 
 This ensures captured graphs reference stable memory addresses and prevents performance degradation from repeated GC cycles.
 
+## Compilation and Execution Pipeline
 
+### Graph Splitting Strategy
 
-\<INSERT HERE>
+The system decomposes the transformer's forward pass at natural layer boundaries using PyTorch FX graph transformations. During splitting:
+
+1. **Boundary Detection**: The compiler identifies high-level operations that mark layer transitions (e.g., attention projections or MoE routing kernels) as split points, configured via `CompilationConfig.split_ops`.
+
+2. **Piece Isolation**: Each transformer layer or attention block becomes an independent computational piece. Critically, the splitting operations themselves are isolated into separate uncompiled subgraphs—these typically contain dynamic control flow incompatible with CUDA graph capture.
+
+3. **Orchestration Layer**: A top-level "stitching graph" is generated to sequence execution across all pieces, managing tensor handoffs while preserving data dependencies. This enables per-layer CUDA graph capture without breaking the overall computation flow.
+
+### Three-Stage Compilation Pipeline
+
+**Stage 1: Graph Decomposition**  
+When `torch.compile` triggers the SGLang backend, the monolithic forward graph is split into layer-wise pieces. This produces both the stitching graph (orchestrator) and independent subgraphs ready for optimization.
+
+**Stage 2: Dynamic Shape Compilation**  
+Each computational piece undergoes initial compilation for dynamic shapes using the selected backend (Eager or Inductor). During this phase, the system tracks which inputs contain symbolic dimensions (typically sequence length) to enable later shape specialization. Original submodules are replaced with smart dispatcher backends that manage shape-specific compilation on demand.
+
+**Stage 3: Lazy Shape-Specific Compilation**  
+Rather than compiling all possible shapes upfront, the system employs lazy compilation triggered at first use. When a piece executes with a token count matching the capture schedule, it compiles that exact shape with aggressive optimizations (including kernel autotuning for Inductor). This minimizes startup time while ensuring optimal performance for frequently encountered batch sizes.
+
+### CUDA Graph Capture and Replay
+
+**Capture Workflow**  
+Graph capture occurs during model initialization in descending size order (largest to smallest). For each target size:
+
+1. A warmup pass executes to stabilize memory patterns and load kernels into GPU cache.
+2. A second pass records all kernel launches within a dedicated CUDA stream context, producing a replayable graph object.
+3. Intermediate outputs are converted to weak references immediately after capture, enabling memory reuse across pieces.
+4. Python's garbage collector is frozen during capture to prevent memory address instability.
+
+This descending-size ordering is critical: larger graphs establish the memory pool's maximum footprint, and smaller graphs reuse this allocation space, minimizing total memory consumption.
+
+**Runtime Replay**  
+At inference time:
+
+1. Incoming token counts are rounded up to the nearest pre-captured size via binary search.
+2. Input data is copied into pre-allocated static buffers matching that size.
+3. The stitching graph executes, with each piece's backend detecting the matching CUDA graph and replaying it directly—overwriting static buffers in-place rather than launching kernels individually.
+4. Final outputs are sliced to the actual batch size to remove padding.
+
+This zero-copy replay eliminates kernel launch overhead while maintaining compatibility with dynamic request patterns.
+
+### Shape Specialization and Fallback
+
+The system extracts the runtime sequence length from input arguments and matches it against pre-captured sizes. If the token count falls within the capture schedule, the corresponding CUDA graph replays. For sizes exceeding the maximum captured threshold—or for requests with special constraints like mid-sequence logprob sampling—the system seamlessly falls back to the dynamically compiled graph or standard execution path. This hybrid approach guarantees correctness across all workloads while maximizing performance for common patterns.
+
+### Multi-Rank Synchronization
+
+In distributed tensor-parallel settings, all ranks coordinate capture and replay through explicit synchronization barriers. After warmup compilation completes, ranks synchronize before beginning capture to ensure identical graph structures across devices. The same capture sizes and ordering are used universally, guaranteeing consistent memory layouts and compatible collective operations (like all-reduce) embedded within graphs. During replay, these collective operations execute at precisely synchronized points across ranks, maintaining correctness without additional coordination overhead. This design enables piecewise CUDA graphs to scale efficiently across multi-GPU deployments.
 
 ## Code Organization
 
@@ -102,57 +151,26 @@ The piecewise CUDA graph system spans multiple modules, each with specific respo
 | pass_manager.py | Orchestration of custom optimization passes |
 | compiler_interface.py | Abstract compiler interface, Inductor adapter, Eager adapter, cache management |
 
-## Troubleshooting
+## Applicability and Limitations
+ 
+ - Piecewise CUDA Graph is designed specifically for the **extend phase** of LLM inference, where kernel launch overhead dominates and sequence lengths are sufficiently large to benefit from graph replay. It does **not apply to decode steps**, which already use standard CUDA graphs with dynamic batching.
+ - The feature is **automatically disabled** in incompatible scenarios: speculative decoding (draft workers), pipeline parallelism (PP > 1), or models with non-standard layer structures (e.g., missing recognizable attention modules). It also conflicts with global `torch.compile` and certain custom backends (e.g., DeepEP, Mooncake MoE).
+ - For **MLA-based models** (e.g., DeepSeek-V3, Qwen-MLA), the maximum captured token count is capped at 2048 to ensure consistent kernel dispatch between capture and replay.
+ - The system can **coexist with ViT CUDA Graph** in multimodal models: ViT CUDA Graph optimizes the vision encoder, while Piecewise CUDA Graph handles the language model—operating independently on separate subgraphs.
+ - As an **experimental feature**, its interface and behavior may evolve; users should expect changes in future releases.
 
-### Out-of-Memory During Capture
 
-**Symptoms**: CUDA out of memory errors during graph capture
+### Troubleshooting
 
-**Solutions**:
+#### CUDA Graph Capture Failure
 
-1. **Lower max tokens**: Reduces the largest graph size, decreasing peak memory
-2. **Lower memory fraction static**: Reserves less memory for static allocations
-3. **Use fewer capture sizes**: Reduces total number of graphs
-4. **Disable the feature**: Falls back to normal execution
+If CUDA graph capture follow the recommended actions emitted by system:
 
-### Slow Startup (Long Compilation Time)
+> **Possible solutions:**  
+> 1. Set `--mem-fraction-static` to a smaller value (e.g., `0.8` or `0.7`)  
+> 2. Set `--cuda-graph-max-bs` to a smaller value (e.g., `16`)  
+> 3. Disable `torch.compile` by not using `--enable-torch-compile`  
+> 4. Disable CUDA graph entirely via `--disable-cuda-graph` *(not recommended—causes significant performance loss)*  
+>   
+> If the issue persists, open an issue at: https://github.com/sgl-project/sglang/issues/new/choose
 
-**Symptoms**: Very long time spent compiling graphs
-
-**Solutions**:
-
-1. **Switch to eager compiler**: 5-10x faster than Inductor with autotuning
-2. **Reduce capture sizes**: Fewer large sizes to compile
-3. **Enable disk cache**: Second run should be much faster due to cache hits
-4. **Check for cache invalidation**: Freeze your environment to benefit from caching
-
-### CUDA Graph Replay Failures
-
-**Symptoms**: CUDA graph replay errors or invalid memory access
-
-**Debugging**:
-
-1. **Enable debug mode**: Logs detailed graph information and validates memory addresses
-2. **Check for dynamic shapes**: Verify workload compatibility with captured sizes
-3. **Disable weak references**: Temporarily disable to isolate the issue
-
-### Incorrect Results
-
-**Symptoms**: Model outputs differ between CUDA graph replay and normal execution
-
-**Checks**:
-
-1. **Verify input data copying**: Ensure replay preparation copies all necessary tensors
-2. **Check attention backend compatibility**: Verify backend initializes metadata correctly
-3. **Compare with fallback**: Force fallback for all requests to isolate CUDA graph logic
-
-### Performance Degradation
-
-**Symptoms**: CUDA graph replay is slower than expected
-
-**Optimizations**:
-
-1. **Ensure TBO is enabled**: Overlaps computation to hide memory latency
-2. **Check capture size granularity**: Adjust sizes to better match workload
-3. **Profile kernel execution**: Use profiling tools to identify bottlenecks
-4. **Try Inductor compiler**: May generate more efficient kernels for compute-bound models
