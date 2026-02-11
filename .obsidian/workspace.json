@@ -787,12 +787,22 @@
             "state": {
               "type": "review-queue-list-view",
               "state": {},
-              "icon": "SpacedRepIcon",
-              "title": "Notes Review Queue"
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
             }
           },
           {
             "id": "7a6cdd32c7cf79b1",
+            "type": "leaf",
+            "state": {
+              "type": "review-queue-list-view",
+              "state": {},
+              "icon": "lucide-ghost",
+              "title": "review-queue-list-view"
+            }
+          },
+          {
+            "id": "2a714782761b5187",
             "type": "leaf",
             "state": {
               "type": "review-queue-list-view",
@@ -826,8 +836,8 @@
   },
   "active": "a0d882203c103598",
   "lastOpenFiles": [
-    "Codebase/SGLang/Piecewise Cuda Graph/Summary.md",
     "Codebase/SGLang/Piecewise Cuda Graph/Piecewise Cuda Graphs.md",
+    "Codebase/SGLang/Piecewise Cuda Graph/Summary.md",
     "CUDA/Section 1.md",
     "Codebase/SGLang/Diagrams.md",
     "Codebase/SGLang/Server Launch.md",
