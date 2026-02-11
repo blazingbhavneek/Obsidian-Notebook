@@ -523,3 +523,10 @@ Bottom to Top:
 				- Debug mode: asserts input data_ptr() addresses match capture-time addresses
 				- entry.cudagraph.replay() - replays all recorded CUDA ops
 				- Returns entry.output - the weak ref tensors whose underlying memory was just overwritten
+
+
+
+This is the forward that uses the piecewise cuda graph runner initiated above First we check whether piecewise cuda graph runner can run this forward batch using self.piecewise_cuda_graph_runner.can_run(forward_batch) if yes then we return the replay of the cuda graph return self.piecewise_cuda_graph_runner.replay(forward_batch, **kwargs)
+
+
+If cuda piewise runner can run it then we use normal model forward: return self.model.forward( forward_batch.input_ids, forward_batch.positions, forward_batch, **kwargs, )
