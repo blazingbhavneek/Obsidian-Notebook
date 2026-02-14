@@ -1,4 +1,4 @@
-# Piecewise CUDA Graph System Design and Optimization
+# Piecewise CUDA Graph System Design 
 
 This document provides a comprehensive overview of SGLang's Piecewise CUDA Graph, covering its system architecture, compilation pipeline, and runtime execution. It details the motivation, graph splitting strategy, memory management, configuration parameters, and integration with the model execution framework, serving as a complete reference for users and developers to understand and optimize Piecewise CUDA Graph for efficient LLM inference.
 
