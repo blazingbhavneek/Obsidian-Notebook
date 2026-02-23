@@ -1,0 +1,39 @@
+- CUDA: Compute unified device architecture
+- CUDA Toolkit
+	- CUDA Compiler: NVCC (CUDA -> PTX (Similar to Assembly))
+	- CUDA libraries: 
+		- cuBLAS: Linear algebra
+		- cuFFT: Fast fourier transforms
+		- cuRAND: Random number generation
+		- cuDNN: Deep neural network lib
+	- CUDA runtime and Driver APIs
+		- High level interface for managing devices, memory and program execution
+		- Example
+			- cudaMalloc()
+			- cudaMemcpy()
+	- Tools
+		- Nsight System
+		- Nsight compute (profiling)
+		- CUDA GDB: Debugger
+		- CUDA Memcheck memory errors in cuda
+- CUDA:
+	- Based on C
+	- nvcc not just a compiler, handles other things too
+	- Host vs Device
+		- Host: CPU + DRAM
+		- Device: GPU + GDRAM
+	- Hardware hierarchy
+		- GPU
+		- SM: streaming multiprocessor
+		- Partitions
+		- Cores (FP Cores)
+	- We are familiar with CPU programs, as they run sequentially on one core + one shared DRAM its easy to imagine, but since GPUs have different level of hierarachy we have to map the Software to different levels, and we will do that with Thread-Blocks
+		- A Cuda script: Full GPU
+		- A thread block: One SM
+	- But who will decide this allocation to SMs?
+		- The Gigathread (The manager)
+	- Once SMs are decided, but which partition will get the program? Each op cant be so big that it needs the entire SM right? so we break down our Thread-Block to
+		- Warps
+		- And each Partition have Warp scheduler
+	- Now we have made to partitions, but how would be assign cores? So each warp is divided into Threads
+		- Default is 32
